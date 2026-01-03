@@ -8,9 +8,10 @@ interface Props {
   data: SankeyData;
   width?: number;
   height?: number;
+  onNodeClick?: (nodeName: string) => void;
 }
 
-const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500 }) => {
+const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeClick }) => {
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -59,7 +60,11 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500 }) => {
       .attr("font-size", 10)
       .selectAll("g")
       .data(nodes)
-      .join("g");
+      .join("g")
+      .style("cursor", onNodeClick ? "pointer" : "default")
+      .on("click", (event, d: any) => {
+        if (onNodeClick) onNodeClick(d.name);
+      });
 
     node.append("rect")
       .attr("x", (d: any) => d.x0)
@@ -67,21 +72,25 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500 }) => {
       .attr("height", (d: any) => d.y1 - d.y0)
       .attr("width", (d: any) => d.x1 - d.x0)
       .attr("fill", (d: any) => color(d.name))
-      .attr("stroke", "#000");
+      .attr("stroke", "#000")
+      .attr("stroke-width", 0.5)
+      .attr("rx", 2);
 
     node.append("text")
       .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 6 : d.x0 - 6)
       .attr("y", (d: any) => (d.y1 + d.y0) / 2)
       .attr("dy", "0.35em")
       .attr("text-anchor", (d: any) => d.x0 < innerWidth / 2 ? "start" : "end")
+      .attr("font-weight", "bold")
       .text((d: any) => d.name)
       .append("tspan")
       .attr("fill-opacity", 0.7)
       .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 6 : d.x0 - 6)
       .attr("dy", "1.2em")
+      .attr("font-weight", "normal")
       .text((d: any) => ` ${d.value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`);
 
-  }, [data, width, height]);
+  }, [data, width, height, onNodeClick]);
 
   return (
     <div className="overflow-x-auto">
