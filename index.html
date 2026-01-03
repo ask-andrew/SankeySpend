@@ -4,33 +4,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SankeySpend</title>
+    <title>Teller | Your Personal Finance Mentor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap');
+        
+        :root {
+            --teller-navy: #0f172a;
+            --teller-gold: #d4af37;
+            --teller-sage: #6b8e23;
+            --teller-cream: #faf9f6;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
+            font-family: 'Outfit', sans-serif;
+            background-color: #fcfcfc;
+            color: #334155;
         }
+
+        .serif {
+            font-family: 'Fraunces', serif;
+        }
+
+        .hero-gradient {
+            background: radial-gradient(circle at top right, #f1f5f9 0%, #ffffff 100%);
+        }
+
+        .security-badge {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+        }
+
+        .teller-illustration {
+            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.1));
+        }
+
+        /* Sankey Styling */
         .sankey-node rect {
-            cursor: move;
-            fill-opacity: .9;
-            shape-rendering: crispEdges;
+            fill-opacity: 0.9;
+            stroke-width: 0;
+            rx: 6px;
         }
+
         .sankey-node text {
-            pointer-events: none;
-            text-shadow: 0 1px 0 #fff;
-            font-size: 10px;
+            font-size: 11px;
+            fill: #475569;
+            font-weight: 600;
         }
+
         .sankey-link {
-            fill: none;
-            stroke: #000;
-            stroke-opacity: .2;
+            stroke: #cbd5e1;
+            stroke-opacity: 0.2;
+            transition: stroke-opacity 0.3s ease;
         }
+
         .sankey-link:hover {
-            stroke-opacity: .5;
+            stroke-opacity: 0.5;
         }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
     </style>
 <script type="importmap">
 {

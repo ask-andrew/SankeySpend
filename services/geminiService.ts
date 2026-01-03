@@ -7,7 +7,6 @@ const sanitizeDescription = (desc: string): string => {
 };
 
 export const categorizeTransactions = async (transactions: Transaction[]): Promise<CategorizationResult[]> => {
-  // Fix: Strict initialization according to guidelines
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const sanitizedToIds = new Map<string, string[]>();
@@ -32,10 +31,9 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
   for (let i = 0; i < sanitizedList.length; i += chunkSize) {
     const chunk = sanitizedList.slice(i, i + chunkSize);
     
-    const prompt = `Categorize these merchant descriptions and extract a CLEAN merchant name (e.g., 'Amazon' instead of 'AMZN MKTP US*123').
-    If description is just a date or junk, use 'Uncategorized'.
-    Categories: Food, Housing, Transport, Shopping, Entertainment, Utilities, Income, Health, Finance, Education, Travel, Business, Uncategorized.
-    
+    const prompt = `You are a friendly personal finance mentor. Categorize these transactions into easy-to-understand groups.
+    Identify credit card payments as "Account Transfer".
+    Categories: Food & Drink, Housing, Transport, Shopping, Fun & Hobbies, Bills & Utilities, Income, Wellness & Health, Money & Finance, Education, Travel, Work, Account Transfer, Uncategorized.
     Data: ${JSON.stringify(chunk)}`;
 
     try {
@@ -50,7 +48,7 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
               type: Type.OBJECT,
               properties: {
                 id: { type: Type.INTEGER },
-                merchant: { type: Type.STRING, description: "Clean vendor name" },
+                merchant: { type: Type.STRING },
                 category: { type: Type.STRING },
                 subCategory: { type: Type.STRING }
               },
@@ -60,7 +58,6 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
         }
       });
 
-      // Fix: Direct property access for text
       const chunkResults = JSON.parse(response.text || '[]');
       
       chunkResults.forEach((res: any) => {
@@ -70,7 +67,7 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
           ids.forEach(id => {
             results.push({
               id,
-              merchant: res.merchant || "Unknown Vendor",
+              merchant: res.merchant || "Unknown",
               category: res.category || "Uncategorized",
               subCategory: res.subCategory || "Other"
             });
@@ -78,25 +75,52 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
         }
       });
     } catch (e) {
-      console.error("Gemini Categorization Error:", e);
+      console.error("Gemini Error:", e);
     }
   }
 
   return results;
 };
 
-export const getSpendingInsights = async (transactions: Transaction[]): Promise<SpendingInsight[]> => {
-  // Fix: Strict initialization according to guidelines
+export const queryTransactions = async (query: string, transactions: Transaction[]): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const summary = transactions.slice(0, 100).map(t => ({
+  const summary = transactions.map(t => `${t.date}: ${t.merchantName || t.description} ($${t.amount}) [${t.category}] ${t.isInternalTransfer ? '(Transfer)' : ''}`).join('\n');
+
+  const prompt = `You are "The Teller", a warm, encouraging, and highly intelligent personal finance mentor. 
+  Answer the user's question about their spending history. Be conversational but accurate.
+  When they ask for "Real Spending", ignore internal transfers between accounts.
+  
+  Transactions:
+  ${summary}
+  
+  Question: ${query}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+    });
+    return response.text || "I'm sorry, I couldn't quite find the answer to that in your history.";
+  } catch (e) {
+    return "I'm having a bit of trouble connecting to your records right now.";
+  }
+};
+
+export const getSpendingInsights = async (transactions: Transaction[]): Promise<SpendingInsight[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  const nonInternal = transactions.filter(t => !t.isInternalTransfer);
+  const summary = nonInternal.slice(0, 100).map(t => ({
     m: t.merchantName,
     a: t.amount,
     c: t.category,
-    isIncome: t.isIncome
+    inc: t.isIncome
   }));
 
-  const prompt = `Analyze these transactions and provide 3 financial insights. Focus on trends and merchant density.
+  const prompt = `You are The Teller. Provide 4 friendly spending insights. 
+  Focus on "Real Spending" (actual expenses, not transfers).
+  Use encouraging language. One should be a celebration milestone.
   Data: ${JSON.stringify(summary)}`;
 
   try {
@@ -112,14 +136,13 @@ export const getSpendingInsights = async (transactions: Transaction[]): Promise<
             properties: {
               title: { type: Type.STRING },
               description: { type: Type.STRING },
-              type: { type: Type.STRING, enum: ["positive", "warning", "info"] }
+              type: { type: Type.STRING, enum: ["positive", "warning", "info", "milestone"] }
             },
             required: ["title", "description", "type"]
           }
         }
       }
     });
-    // Fix: Direct property access for text
     return JSON.parse(response.text || '[]');
   } catch (e) {
     return [];
