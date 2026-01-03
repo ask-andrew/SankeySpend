@@ -1,0 +1,5 @@
+{
+  "name": "SankeySpend - Smart Transaction Visualizer",
+  "description": "A powerful financial tool that uses Gemini AI to categorize bank transactions and visualize them using interactive Sankey diagrams and insightful dashboards.",
+  "requestFramePermissions": []
+}
