@@ -3,15 +3,17 @@ export interface Transaction {
   id: string;
   date: string;
   description: string;
+  merchantName?: string; // AI-cleaned vendor name
   amount: number;
   category: string;
   subCategory?: string;
   isIncome: boolean;
-  source: string; // New field to track the file/account
+  source: string;
 }
 
 export interface CategorizationResult {
   id: string;
+  merchant: string;
   category: string;
   subCategory: string;
 }

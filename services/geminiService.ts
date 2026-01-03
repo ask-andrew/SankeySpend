@@ -2,20 +2,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Transaction, CategorizationResult, SpendingInsight } from "../types";
 
-/**
- * Sanitizes transaction descriptions to remove potential PII like account numbers or IDs.
- */
 const sanitizeDescription = (desc: string): string => {
-  // Remove sequences of 4+ digits, but keep merchant names
   return desc.replace(/\b\d{4,}\b/g, '****').replace(/\s\s+/g, ' ').trim();
 };
 
 export const categorizeTransactions = async (transactions: Transaction[]): Promise<CategorizationResult[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  // Fix: Strict initialization according to guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const sanitizedToIds = new Map<string, string[]>();
   transactions.forEach(t => {
-    // If the description is a date or looks like junk, don't waste tokens
     const sanitized = sanitizeDescription(t.description.substring(0, 80));
     if (!sanitizedToIds.has(sanitized)) {
       sanitizedToIds.set(sanitized, []);
@@ -36,9 +32,8 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
   for (let i = 0; i < sanitizedList.length; i += chunkSize) {
     const chunk = sanitizedList.slice(i, i + chunkSize);
     
-    const prompt = `Categorize these merchant descriptions. 
-    IMPORTANT: If a description is just a date (like "12/20/2024") or looks like a placeholder, mark category as 'Uncategorized'. 
-    Do NOT default everything to 'Finance'. Use 'Finance' only for bank fees, interest, or specific financial services.
+    const prompt = `Categorize these merchant descriptions and extract a CLEAN merchant name (e.g., 'Amazon' instead of 'AMZN MKTP US*123').
+    If description is just a date or junk, use 'Uncategorized'.
     Categories: Food, Housing, Transport, Shopping, Entertainment, Utilities, Income, Health, Finance, Education, Travel, Business, Uncategorized.
     
     Data: ${JSON.stringify(chunk)}`;
@@ -55,15 +50,17 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
               type: Type.OBJECT,
               properties: {
                 id: { type: Type.INTEGER },
+                merchant: { type: Type.STRING, description: "Clean vendor name" },
                 category: { type: Type.STRING },
                 subCategory: { type: Type.STRING }
               },
-              required: ["id", "category", "subCategory"]
+              required: ["id", "merchant", "category", "subCategory"]
             }
           }
         }
       });
 
+      // Fix: Direct property access for text
       const chunkResults = JSON.parse(response.text || '[]');
       
       chunkResults.forEach((res: any) => {
@@ -73,6 +70,7 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
           ids.forEach(id => {
             results.push({
               id,
+              merchant: res.merchant || "Unknown Vendor",
               category: res.category || "Uncategorized",
               subCategory: res.subCategory || "Other"
             });
@@ -88,16 +86,17 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
 };
 
 export const getSpendingInsights = async (transactions: Transaction[]): Promise<SpendingInsight[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  // Fix: Strict initialization according to guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const summary = transactions.slice(0, 100).map(t => ({
-    d: sanitizeDescription(t.description.substring(0, 40)),
+    m: t.merchantName,
     a: t.amount,
     c: t.category,
     isIncome: t.isIncome
   }));
 
-  const prompt = `Analyze these transactions and provide 3 financial insights.
+  const prompt = `Analyze these transactions and provide 3 financial insights. Focus on trends and merchant density.
   Data: ${JSON.stringify(summary)}`;
 
   try {
@@ -120,6 +119,7 @@ export const getSpendingInsights = async (transactions: Transaction[]): Promise<
         }
       }
     });
+    // Fix: Direct property access for text
     return JSON.parse(response.text || '[]');
   } catch (e) {
     return [];
