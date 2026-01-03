@@ -13,6 +13,11 @@ export interface Transaction {
   isInternalTransfer?: boolean;
 }
 
+export interface CategoryBudget {
+  category: string;
+  limit: number;
+}
+
 export interface TransactionLink {
   id: string;
   transactionId1: string; // Payment from checking

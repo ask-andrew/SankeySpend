@@ -20,14 +20,14 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
-    const margin = { top: 10, right: 10, bottom: 10, left: 10 };
+    const margin = { top: 20, right: 150, bottom: 20, left: 150 };
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
     const sankey = (d3Sankey() as any)
-      .nodeWidth(15)
-      .nodePadding(10)
-      .extent([[1, 1], [innerWidth - 1, innerHeight - 6]]);
+      .nodeWidth(20)
+      .nodePadding(20)
+      .extent([[1, 1], [innerWidth - 1, innerHeight - 1]]);
 
     const { nodes, links } = sankey({
       nodes: data.nodes.map(d => ({ ...d })),
@@ -37,26 +37,28 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
     const g = svg.append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
+    // Use a consistent color scale for both nodes and links
+    const color = d3.scaleOrdinal(d3.schemeCategory10);
+
     const link = g.append("g")
       .attr("fill", "none")
-      .attr("stroke-opacity", 0.5)
+      .attr("stroke-opacity", 0.4) // Increased opacity for "full band" look
       .selectAll("g")
       .data(links)
       .join("g")
       .style("mix-blend-mode", "multiply");
 
-    const color = d3.scaleOrdinal(d3.schemeCategory10);
-
     link.append("path")
       .attr("d", sankeyLinkHorizontal())
-      .attr("stroke", (d: any) => color(d.source.name))
+      // COLOR BY TARGET: Use the category node's color for the link band
+      .attr("stroke", (d: any) => color(d.target.name))
       .attr("stroke-width", (d: any) => Math.max(1, d.width));
 
     link.append("title")
       .text((d: any) => `${d.source.name} → ${d.target.name}\n${d.value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`);
 
     const node = g.append("g")
-      .attr("font-family", "sans-serif")
+      .attr("font-family", "'Outfit', sans-serif")
       .attr("font-size", 10)
       .selectAll("g")
       .data(nodes)
@@ -72,23 +74,26 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
       .attr("height", (d: any) => d.y1 - d.y0)
       .attr("width", (d: any) => d.x1 - d.x0)
       .attr("fill", (d: any) => color(d.name))
-      .attr("stroke", "#000")
+      .attr("stroke", "rgba(0,0,0,0.1)")
       .attr("stroke-width", 0.5)
-      .attr("rx", 2);
+      .attr("rx", 3);
 
     node.append("text")
-      .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 6 : d.x0 - 6)
+      .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 10 : d.x0 - 10)
       .attr("y", (d: any) => (d.y1 + d.y0) / 2)
       .attr("dy", "0.35em")
       .attr("text-anchor", (d: any) => d.x0 < innerWidth / 2 ? "start" : "end")
-      .attr("font-weight", "bold")
+      .attr("fill", "#062c1a")
+      .style("font-weight", "800")
+      .style("text-transform", "uppercase")
+      .style("letter-spacing", "0.05em")
       .text((d: any) => d.name)
       .append("tspan")
-      .attr("fill-opacity", 0.7)
-      .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 6 : d.x0 - 6)
+      .attr("fill", "#8c7851")
+      .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 10 : d.x0 - 10)
       .attr("dy", "1.2em")
-      .attr("font-weight", "normal")
-      .text((d: any) => ` ${d.value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`);
+      .style("font-weight", "600")
+      .text((d: any) => ` ${d.value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`);
 
   }, [data, width, height, onNodeClick]);
 

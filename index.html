@@ -1,26 +1,32 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teller | Your Personal Finance Mentor</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Teller | Your Money's Story, Privately Told</title>
+    <!-- Favicon to resolve 404 -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>">
+    
+    <!-- Tailwind v3 Script (JIT Support) -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap');
         
         :root {
-            --teller-navy: #0f172a;
-            --teller-gold: #d4af37;
-            --teller-sage: #6b8e23;
-            --teller-cream: #faf9f6;
+            --bankers-green: #062c1a;
+            --polished-brass: #c5a059;
+            --vintage-mahogany: #2d1810;
+            --teller-parchment: #fdfaf3;
         }
 
         body {
             font-family: 'Outfit', sans-serif;
-            background-color: #fcfcfc;
-            color: #334155;
+            background-color: var(--teller-parchment);
+            color: #3e3e3e;
+            margin: 0;
+            padding: 0;
         }
 
         .serif {
@@ -28,49 +34,58 @@
         }
 
         .hero-gradient {
-            background: radial-gradient(circle at top right, #f1f5f9 0%, #ffffff 100%);
-        }
-
-        .security-badge {
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            background: radial-gradient(circle at top right, #f4eee1 0%, #fdfaf3 100%);
         }
 
         .card-shadow {
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
         }
 
-        .teller-illustration {
-            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.1));
+        .logo-text {
+            color: var(--bankers-green);
+            font-family: 'Fraunces', serif;
+            font-weight: 800;
         }
 
         /* Sankey Styling */
         .sankey-node rect {
-            fill-opacity: 0.9;
-            stroke-width: 0;
-            rx: 6px;
+            fill-opacity: 0.95;
+            stroke-width: 0.5;
+            stroke: rgba(0,0,0,0.1);
+            rx: 2px;
         }
 
         .sankey-node text {
             font-size: 11px;
-            fill: #475569;
+            fill: #2d1810;
             font-weight: 600;
         }
 
         .sankey-link {
-            stroke: #cbd5e1;
-            stroke-opacity: 0.2;
+            stroke: #c5a059;
+            stroke-opacity: 0.15;
             transition: stroke-opacity 0.3s ease;
         }
 
         .sankey-link:hover {
-            stroke-opacity: 0.5;
+            stroke-opacity: 0.4;
         }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        ::-webkit-scrollbar-thumb { background: #dcd0b9; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #c5a059; }
+
+        .brass-button {
+            background: linear-gradient(145deg, #d4af37, #c5a059);
+            box-shadow: 0 4px 0 #a6853a;
+            transition: all 0.1s;
+        }
+        .brass-button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #a6853a;
+        }
     </style>
 <script type="importmap">
 {
