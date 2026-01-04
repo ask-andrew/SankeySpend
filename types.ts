@@ -9,24 +9,13 @@ export interface Transaction {
   subCategory?: string;
   isIncome: boolean;
   source: string;
-  linkedToId?: string; // ID of the matching payment/transfer
+  linkedToId?: string;
   isInternalTransfer?: boolean;
 }
 
 export interface CategoryBudget {
   category: string;
   limit: number;
-}
-
-export interface TransactionLink {
-  id: string;
-  transactionId1: string; // Payment from checking
-  transactionId2: string; // Payment to credit card
-  linkType: 'credit_card_payment' | 'transfer' | 'manual';
-  amount: number;
-  confidence: number; // 0-100
-  userConfirmed: boolean;
-  dateLinked: string;
 }
 
 export interface CategorizationResult {
@@ -52,4 +41,12 @@ export interface ChatMessage {
   role: 'user' | 'model';
   content: string;
   isInitial?: boolean;
+}
+
+export interface FinancialFingerprint {
+  impulsivity: number;
+  weekendEffect: number;
+  essentialRatio: number;
+  merchantLoyalty: number;
+  digitalDependency: number;
 }
