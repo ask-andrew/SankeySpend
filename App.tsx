@@ -131,7 +131,10 @@ const App: React.FC = () => {
     { role: 'model', content: "Welcome back to the Teller's desk. What story shall we uncover today? Your privacy is sealed behind this counter.", isInitial: true }
   ]);
   const [chatInput, setChatInput] = useState('');
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const [editCategory, setEditCategory] = useState<string>('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('teller_ai_enabled') !== 'false');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -144,12 +147,20 @@ const App: React.FC = () => {
   }, [budgets]);
 
   useEffect(() => {
+    localStorage.setItem('teller_ai_enabled', JSON.stringify(aiEnabled));
+  }, [aiEnabled]);
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
 
   const refreshInsights = async () => {
-    const newInsights = await getSpendingInsights(transactions);
-    setInsights(newInsights);
+    if (aiEnabled) {
+      const newInsights = await getSpendingInsights(transactions);
+      setInsights(newInsights);
+    } else {
+      setInsights([]);
+    }
   };
 
   const handleDemoData = () => {
@@ -221,7 +232,7 @@ const App: React.FC = () => {
         allNewTransactions = [...allNewTransactions, ...parsed];
       }
       const toCategorize = allNewTransactions.filter(t => !t.category || t.category === 'Categorizing...' || t.category === 'Uncategorized');
-      const cats = await categorizeTransactions(toCategorize);
+      const cats = aiEnabled ? await categorizeTransactions(toCategorize) : [];
       const enriched = allNewTransactions.map(t => {
         const match = cats.find(c => c.id === t.id);
         let category = t.category;
@@ -235,6 +246,46 @@ const App: React.FC = () => {
           isInternalTransfer: category === 'Account Transfer'
         };
       });
+
+      // NEW: Smart pairing for internal transfers across all transactions (existing + new)
+      const allTransactionsForPairing = [...transactions, ...enriched];
+      const potentialTransfers = new Map<number, Transaction[]>(); // amount -> transactions
+
+      allTransactionsForPairing.forEach(t => {
+        if (t.category !== 'Account Transfer') { // Only consider non-transfers for pairing
+          const absAmount = Math.abs(t.amount);
+          if (!potentialTransfers.has(absAmount)) {
+            potentialTransfers.set(absAmount, []);
+          }
+          potentialTransfers.get(absAmount)!.push(t);
+        }
+      });
+
+      potentialTransfers.forEach(txs => {
+        if (txs.length >= 2) {
+          // Sort by date to find close pairs
+          txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+          for (let i = 0; i < txs.length - 1; i++) {
+            const tx1 = txs[i];
+            const tx2 = txs[i + 1];
+
+            // Check if they are income/expense pair of same amount, close in date, different sources
+            if (tx1.isIncome !== tx2.isIncome &&
+                Math.abs(tx1.amount) === Math.abs(tx2.amount) &&
+                Math.abs(new Date(tx1.date).getTime() - new Date(tx2.date).getTime()) < (1000 * 60 * 60 * 24 * 7) // within 7 days
+                // Add more sophisticated source/account matching if needed, e.g., tx1.source !== tx2.source
+              ) {
+              // Mark both as internal transfers
+              tx1.category = 'Account Transfer';
+              tx1.isInternalTransfer = true;
+              tx2.category = 'Account Transfer';
+              tx2.isInternalTransfer = true;
+            }
+          }
+        }
+      });
+
       setTransactions([...transactions, ...enriched]);
       await refreshInsights();
     } catch (err) { console.error(err); } finally { setIsProcessing(false); }
@@ -249,6 +300,19 @@ const App: React.FC = () => {
     a.download = `teller-vault-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const saveCategoryEdit = (txId: string) => {
+    setTransactions(prev => prev.map(t => {
+      if (t.id === txId) {
+        const updated = { ...t, category: editCategory, isInternalTransfer: editCategory === 'Account Transfer' };
+        return updated;
+      }
+      return t;
+    }));
+    setEditingTransactionId(null);
+    setEditCategory('');
+    refreshInsights();
   };
 
   const filteredTransactions = useMemo(() => {
@@ -354,6 +418,10 @@ const App: React.FC = () => {
 
   const handleSuggest = async () => {
     if (transactions.length === 0) return;
+    if (!aiEnabled) {
+      alert("Enable AI in Settings to use budget suggestions.");
+      return;
+    }
     setIsSuggesting(true);
     try {
         const suggestions = await suggestBudgets(transactions);
@@ -373,6 +441,10 @@ const App: React.FC = () => {
   const handleChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || isChatLoading) return;
+    if (!aiEnabled) {
+      setChatHistory(prev => [...prev, { role: 'model', content: "Enable AI in Settings to chat with the Teller." }]);
+      return;
+    }
     const userMessage = chatInput.trim();
     setChatInput('');
     setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
@@ -426,6 +498,15 @@ const App: React.FC = () => {
            <button onClick={handleExportData} className="w-full text-[10px] text-emerald-100/50 hover:text-[#c5a059] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
              <i className="fas fa-download"></i> Download Vault Backup
            </button>
+           <div className="flex items-center justify-between gap-2">
+             <span className="text-[10px] text-emerald-100/50 font-black uppercase tracking-widest">AI Features</span>
+             <button
+               onClick={() => setAiEnabled(!aiEnabled)}
+               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${aiEnabled ? 'bg-[#c5a059]' : 'bg-emerald-900/40'}`}
+             >
+               <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${aiEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+             </button>
+           </div>
            <p className="text-[10px] text-emerald-100/20 uppercase tracking-[0.2em] font-black text-center italic">"What is your money telling you?"</p>
            <button onClick={() => { if(confirm("Clear local data?")) { localStorage.clear(); window.location.reload(); } }} className="w-full text-[10px] text-emerald-900/60 hover:text-orange-300 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
              <i className="fas fa-broom"></i> Re-lock Vault
@@ -745,7 +826,30 @@ const App: React.FC = () => {
                                 </div>
                                 </td>
                                 <td className="py-6 md:py-8 px-6 md:px-12">
-                                <span className={`px-3 md:px-4 py-1.5 md:py-2 rounded-md text-[9px] font-black uppercase tracking-widest border border-[#c5a059] ${t.category === 'Account Transfer' ? 'bg-[#2d1810] text-white border-transparent' : 'text-[#062c1a]'}`}>{t.category}</span>
+                                {editingTransactionId === t.id ? (
+                                  <select
+                                    value={editCategory}
+                                    onChange={e => setEditCategory(e.target.value)}
+                                    onBlur={() => saveCategoryEdit(t.id)}
+                                    onKeyDown={e => { if (e.key === 'Enter') saveCategoryEdit(t.id); }}
+                                    className="px-3 py-1 rounded-md border border-[#c5a059] text-[9px] font-black uppercase tracking-widest bg-white text-[#062c1a]"
+                                    autoFocus
+                                  >
+                                    <option value="Uncategorized">Uncategorized</option>
+                                    <option value="Account Transfer">Account Transfer</option>
+                                    <option value="Income">Income</option>
+                                    {spendingCategories.map(cat => (
+                                      <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span
+                                    onClick={() => { setEditingTransactionId(t.id); setEditCategory(t.category); }}
+                                    className={`cursor-pointer hover:opacity-80 px-3 md:px-4 py-1.5 md:py-2 rounded-md text-[9px] font-black uppercase tracking-widest border ${t.category === 'Account Transfer' ? 'bg-[#2d1810] text-white border-transparent' : 'text-[#062c1a] border-[#c5a059]'}`}
+                                  >
+                                    {t.category}
+                                  </span>
+                                )}
                                 </td>
                                 <td className={`py-6 md:py-8 px-6 md:px-12 text-right text-sm font-black ${t.isIncome ? 'text-green-800' : 'text-[#2d1810]'}`}>
                                 ${t.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}

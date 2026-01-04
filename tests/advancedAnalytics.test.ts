@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Transaction } from '../types';
-import { calculateHabitTax, HABITS, findPareto, findParetoByCategory, detectLifestyleInflation } from '../services/advancedAnalytics';
+import { calculateHabitTax, HABITS, findPareto, findParetoByCategory, detectLifestyleInflation } from '../services/advanced_analytics_enhanced';
 
 const baseTx = (partial: Partial<Transaction>): Transaction => ({
   id: 'id',

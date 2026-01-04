@@ -676,6 +676,16 @@ export const calculateFinancialHealthScore = (
   
   const totalScore = Math.round(essentialsScore + savingsScore + consistencyScore + habitScore);
   
+  // DEBUG: Log intermediate values
+  console.log('Financial Health Debug:', {
+    totalSpend, totalIncome, essentialSpend,
+    essentialsRatio, essentialsScore,
+    savingsRate, savingsScore,
+    cv, consistencyScore,
+    totalHabitSpend, habitRatio, habitScore,
+    totalScore
+  });
+  
   let grade: 'A' | 'B' | 'C' | 'D' | 'F';
   if (totalScore >= 90) grade = 'A';
   else if (totalScore >= 80) grade = 'B';
