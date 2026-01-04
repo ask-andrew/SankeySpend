@@ -7,6 +7,9 @@ import Papa from 'papaparse';
 import { 
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
 } from 'recharts';
+import HabitTaxCalculator from './components/insights/HabitTaxCalculator';
+import ParetoAnalysis from './components/insights/ParetoAnalysis';
+import LifestyleInflationDetector from './components/insights/LifestyleInflationDetector';
 
 export const COLORS = ['#062c1a', '#2d1810', '#c5a059', '#634b3e', '#8c7851', '#dcd0b9', '#3e3e3e', '#e8e1d4'];
 const TELLER_ILLUSTRATION = "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?q=80&w=800&auto=format&fit=crop";
@@ -26,6 +29,47 @@ const CATEGORY_ICONS: Record<string, string> = {
   "Work": "fa-briefcase",
   "Account Transfer": "fa-shuffle",
   "Uncategorized": "fa-circle-question"
+};
+
+const getMonthKey = (rawDate: string | undefined): string => {
+  if (!rawDate) return '';
+  const parsed = new Date(rawDate);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  }
+  // Fallback to first 7 chars (works reasonably for ISO-like strings)
+  return rawDate.slice(0, 7);
+};
+
+const formatMonthLabel = (monthKey: string): string => {
+  if (!monthKey) return '';
+  const [year, month] = monthKey.split('-');
+  const y = Number(year);
+  const m = Number(month);
+  if (!isNaN(y) && !isNaN(m)) {
+    const d = new Date(y, m - 1, 1);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+    }
+  }
+  return monthKey;
+};
+
+const guessCategoryFromDescription = (description: string): string | undefined => {
+  const d = description.toLowerCase();
+  if (/rent|landlord|mortgage/.test(d)) return 'Housing';
+  if (/uber|lyft|bus|train|metro|subway/.test(d)) return 'Transport';
+  if (/grocery|supermarket|market|whole foods|trader joe/.test(d)) return 'Food & Drink';
+  if (/coffee|cafe|starbucks|dunkin/.test(d)) return 'Food & Drink';
+  if (/netflix|spotify|hulu|disney|max/.test(d)) return 'Bills & Utilities';
+  if (/gym|fitness|yoga|clinic|pharmacy/.test(d)) return 'Wellness & Health';
+  if (/amazon|target|walmart|best buy/.test(d)) return 'Shopping';
+  if (/flight|airlines|hotel|airbnb/.test(d)) return 'Travel';
+  if (/salary|payroll|paycheck|wages/.test(d)) return 'Income';
+  if (/transfer|payment to|cc payment|credit card payment/.test(d)) return 'Account Transfer';
+  return undefined;
 };
 
 const Logo: React.FC<{ showTagline?: boolean; size?: 'sm' | 'md' | 'lg', isLight?: boolean }> = ({ showTagline = true, size = 'md', isLight = false }) => {
@@ -72,7 +116,7 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : {};
   });
 
-  const [activeTab, setActiveTab] = useState<'home' | 'history' | 'assistant' | 'budgets' | 'about'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'history' | 'assistant' | 'budgets' | 'insights' | 'about'>('home');
   const [isProcessing, setIsProcessing] = useState(false);
   const [insights, setInsights] = useState<SpendingInsight[]>([]);
   const [filterMonth, setFilterMonth] = useState<string>('all');
@@ -158,13 +202,14 @@ const App: React.FC = () => {
               const dateH = headers.find(h => /date/i.test(h));
               const descH = headers.find(h => /desc|memo|payee|merchant/i.test(h));
               const amtH = headers.find(h => /amount|total|value/i.test(h));
+              const catH = headers.find(h => /category/i.test(h));
               if (!dateH || !amtH) return res([]);
               res((results.data as any[]).map((row, idx) => ({
                 id: `${file.name}-${idx}-${Date.now()}`,
                 date: row[dateH],
                 description: row[descH!] || 'Activity',
                 amount: Math.abs(parseFloat(row[amtH].toString().replace(/[$,]/g, '')) || 0),
-                category: 'Categorizing...',
+                category: catH && row[catH] ? String(row[catH]) : 'Categorizing...',
                 isIncome: parseFloat(row[amtH].toString().replace(/[$,]/g, '')) > 0,
                 source: file.name
               })));
@@ -173,10 +218,14 @@ const App: React.FC = () => {
         });
         allNewTransactions = [...allNewTransactions, ...parsed];
       }
-      const cats = await categorizeTransactions(allNewTransactions);
+      const toCategorize = allNewTransactions.filter(t => !t.category || t.category === 'Categorizing...' || t.category === 'Uncategorized');
+      const cats = await categorizeTransactions(toCategorize);
       const enriched = allNewTransactions.map(t => {
         const match = cats.find(c => c.id === t.id);
-        const category = match?.category || 'Uncategorized';
+        let category = t.category;
+        if (!category || category === 'Categorizing...' || category === 'Uncategorized') {
+          category = match?.category || guessCategoryFromDescription(t.description) || 'Uncategorized';
+        }
         return { 
           ...t, 
           merchantName: match?.merchant, 
@@ -201,13 +250,16 @@ const App: React.FC = () => {
   };
 
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
+    const base = transactions.filter(t => {
       const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            (t.merchantName?.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCategory = selectedCategory === 'all' || t.category === selectedCategory;
-      const matchesMonth = filterMonth === 'all' || (t.date && t.date.startsWith(filterMonth));
+      const matchesMonth = filterMonth === 'all' || getMonthKey(t.date) === filterMonth;
       return matchesSearch && matchesCategory && matchesMonth;
     });
+
+    // Ensure spending views are grouped / ordered by month and then by date (newest first)
+    return base.slice().sort((a, b) => b.date.localeCompare(a.date));
   }, [transactions, searchTerm, selectedCategory, filterMonth]);
 
   const categoriesAvailable = useMemo(() => {
@@ -228,17 +280,18 @@ const App: React.FC = () => {
   const months = useMemo(() => {
     const mSet = new Set<string>();
     transactions.forEach(t => {
-      if (t.date && t.date.length >= 7) mSet.add(t.date.substring(0, 7));
+      const key = getMonthKey(t.date);
+      if (key) mSet.add(key);
     });
     return Array.from(mSet).sort().reverse();
   }, [transactions]);
 
   const currentMonthSpending = useMemo(() => {
     const now = new Date();
-    const currentM = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+    const currentM = getMonthKey(now.toISOString());
     const monthlyData: Record<string, number> = {};
     transactions.forEach(t => {
-      if (t.date.startsWith(currentM) && !t.isIncome && t.category !== 'Account Transfer') {
+      if (getMonthKey(t.date) === currentM && !t.isIncome && t.category !== 'Account Transfer') {
         monthlyData[t.category] = (monthlyData[t.category] || 0) + t.amount;
       }
     });
@@ -353,6 +406,9 @@ const App: React.FC = () => {
           </button>
           <button onClick={() => {setActiveTab('budgets'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'budgets' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
             <i className="fas fa-vault w-5"></i> Budget Office
+          </button>
+          <button onClick={() => {setActiveTab('insights'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'insights' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
+            <i className="fas fa-brain w-5"></i> Money Insights
           </button>
           <button onClick={() => {setActiveTab('history'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'history' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
             <i className="fas fa-scroll w-5"></i> Activity Record
@@ -562,6 +618,33 @@ const App: React.FC = () => {
                 </div>
               )}
 
+              {activeTab === 'insights' && (
+                <div className="space-y-12 p-6 md:p-10 lg:p-12 max-w-7xl mx-auto">
+                  <div className="bg-gradient-to-br from-[#062c1a] to-[#2d1810] text-white p-8 md:p-12 lg:p-16 rounded-3xl card-shadow border border-[#c5a059]/40 relative overflow-hidden">
+                    <div className="absolute inset-0 opacity-10 mix-blend-soft-light pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at top left, #c5a059 0, transparent 55%), radial-gradient(circle at bottom right, #fdfaf3 0, transparent 55%)' }}></div>
+                    <div className="relative z-10 space-y-4 md:space-y-6">
+                      <p className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-100/60">Money Insights Ledger</p>
+                      <h1 className="text-3xl md:text-5xl font-black serif italic leading-tight">Your Financial Intelligence Report</h1>
+                      <p className="text-amber-100/70 text-sm md:text-base max-w-2xl">
+                        Deep insights drawn from {transactions.length.toLocaleString()} transactions in your private vault. No servers, no uploads—just your browser and your ledger.
+                      </p>
+                    </div>
+                  </div>
+
+                  <section className="bg-white rounded-3xl card-shadow border border-[#dcd0b9] p-6 md:p-10 lg:p-12 space-y-8">
+                    <HabitTaxCalculator transactions={transactions} />
+                  </section>
+
+                  <section className="bg-white rounded-3xl card-shadow border border-[#dcd0b9] p-6 md:p-10 lg:p-12 space-y-8">
+                    <ParetoAnalysis transactions={transactions} />
+                  </section>
+
+                  <section className="bg-white rounded-3xl card-shadow border border-[#dcd0b9] p-6 md:p-10 lg:p-12 space-y-8">
+                    <LifestyleInflationDetector transactions={transactions} />
+                  </section>
+                </div>
+              )}
+
               {activeTab === 'budgets' && (
                 <div className="max-w-6xl mx-auto space-y-8 md:space-y-12">
                   <div className="bg-[#062c1a] p-10 lg:p-16 rounded-3xl lg:rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
@@ -711,7 +794,7 @@ const App: React.FC = () => {
                         <p className="text-lg text-slate-700 leading-relaxed font-medium">"Teller was built to turn cold records into a narrative, and to do so with complete, uncompromised privacy."</p>
                         <p className="text-slate-600 leading-relaxed">Financial data is the most intimate record of our lives. Teller ensures this record stays yours. Your data never touches a server; it lives solely in your browser's local memory, accessible even when you're off the grid.</p>
                     </section>
-
+                    
                     <section className="bg-[#2d1810] p-8 md:p-12 rounded-3xl shadow-2xl text-white space-y-6 md:space-y-8">
                         <h3 className="text-2xl font-black serif italic text-[#c5a059]">The Privacy Manifesto</h3>
                         <ul className="space-y-6">
