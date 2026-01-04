@@ -7,7 +7,7 @@ const sanitizeDescription = (desc: string): string => {
 };
 
 export const categorizeTransactions = async (transactions: Transaction[]): Promise<CategorizationResult[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   
   const sanitizedToIds = new Map<string, string[]>();
   transactions.forEach(t => {
@@ -84,7 +84,7 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
 };
 
 export const getSpendingInsights = async (transactions: Transaction[]): Promise<SpendingInsight[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   const realSpend = transactions.filter(t => t.category !== 'Account Transfer' && !t.isIncome);
   
   const summary = realSpend.slice(0, 50).map(t => ({
@@ -129,7 +129,7 @@ export const getSpendingInsights = async (transactions: Transaction[]): Promise<
 };
 
 export const suggestBudgets = async (transactions: Transaction[]): Promise<BudgetSuggestion[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   const realSpend = transactions.filter(t => t.category !== 'Account Transfer' && !t.isIncome);
   
   // Group by category to find average monthly volumes
@@ -171,7 +171,7 @@ export const suggestBudgets = async (transactions: Transaction[]): Promise<Budge
 };
 
 export const queryTransactions = async (query: string, transactions: Transaction[]): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   const summary = transactions.slice(0, 200).map(t => `${t.date}: ${t.merchantName || t.description} ($${t.amount}) [${t.category}]`).join('\n');
 
   const prompt = `You are "The Teller", a wise and friendly bank teller from a golden era of banking.
