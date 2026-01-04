@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Transaction, SpendingInsight, SankeyData, ChatMessage, FinancialFingerprint, BudgetSuggestion } from './types';
+import { Transaction, SpendingInsight, SankeyData, ChatMessage, BudgetSuggestion } from './types';
 import { categorizeTransactions, getSpendingInsights, queryTransactions, suggestBudgets } from './services/geminiService';
 import SankeyChart from './components/SankeyChart';
 import Papa from 'papaparse';
@@ -10,6 +10,8 @@ import {
 import HabitTaxCalculator from './components/insights/HabitTaxCalculator';
 import ParetoAnalysis from './components/insights/ParetoAnalysis';
 import LifestyleInflationDetector from './components/insights/LifestyleInflationDetector';
+import CashFlowWaterfall from './components/insights/CashFlowWaterfall';
+import FinancialFingerprintInsight from './components/insights/FinancialFingerprint';
 
 export const COLORS = ['#062c1a', '#2d1810', '#c5a059', '#634b3e', '#8c7851', '#dcd0b9', '#3e3e3e', '#e8e1d4'];
 const TELLER_ILLUSTRATION = "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?q=80&w=800&auto=format&fit=crop";
@@ -641,6 +643,14 @@ const App: React.FC = () => {
 
                   <section className="bg-white rounded-3xl card-shadow border border-[#dcd0b9] p-6 md:p-10 lg:p-12 space-y-8">
                     <LifestyleInflationDetector transactions={transactions} />
+                  </section>
+
+                  <section className="bg-white rounded-3xl card-shadow border border-[#dcd0b9] p-6 md:p-10 lg:p-12 space-y-8">
+                    <CashFlowWaterfall transactions={transactions} />
+                  </section>
+
+                  <section className="bg-white rounded-3xl card-shadow border border-[#dcd0b9] p-6 md:p-10 lg:p-12 space-y-8">
+                    <FinancialFingerprintInsight transactions={transactions} habitTaxResults={[]} />
                   </section>
                 </div>
               )}
