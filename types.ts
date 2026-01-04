@@ -30,6 +30,8 @@ export interface SpendingInsight {
   description: string;
   type: 'positive' | 'warning' | 'info' | 'milestone';
   value?: string;
+  icon?: string;
+  color?: string;
 }
 
 export interface SankeyData {
@@ -49,4 +51,11 @@ export interface FinancialFingerprint {
   essentialRatio: number;
   merchantLoyalty: number;
   digitalDependency: number;
+}
+
+export interface BudgetSuggestion {
+  category: string;
+  suggestedLimit: number;
+  reason: string;
+  potentialSavings: number;
 }

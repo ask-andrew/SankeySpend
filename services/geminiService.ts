@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Transaction, CategorizationResult, SpendingInsight } from "../types";
+import { Transaction, CategorizationResult, SpendingInsight, BudgetSuggestion } from "../types";
 
 const sanitizeDescription = (desc: string): string => {
   return desc.replace(/\b\d{4,}\b/g, '****').replace(/\s\s+/g, ' ').trim();
@@ -25,15 +25,16 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
   
   if (sanitizedList.length === 0) return [];
 
-  const chunkSize = 50;
+  const chunkSize = 40;
   const results: CategorizationResult[] = [];
 
   for (let i = 0; i < sanitizedList.length; i += chunkSize) {
     const chunk = sanitizedList.slice(i, i + chunkSize);
     
-    const prompt = `You are a friendly personal finance mentor. Categorize these transactions into easy-to-understand groups.
-    Identify credit card payments as "Account Transfer".
-    Categories: Food & Drink, Housing, Transport, Shopping, Fun & Hobbies, Bills & Utilities, Income, Wellness & Health, Money & Finance, Education, Travel, Work, Account Transfer, Uncategorized.
+    const prompt = `You are a warm financial mentor. Categorize these bank transactions. 
+    IMPORTANT: Identify internal transfers, credit card bill payments, and transfers between accounts as "Account Transfer". These should not be treated as spending.
+    Available Categories: Food & Drink, Housing, Transport, Shopping, Fun & Hobbies, Bills & Utilities, Income, Wellness & Health, Money & Finance, Education, Travel, Work, Account Transfer, Uncategorized.
+    
     Data: ${JSON.stringify(chunk)}`;
 
     try {
@@ -82,45 +83,21 @@ export const categorizeTransactions = async (transactions: Transaction[]): Promi
   return results;
 };
 
-export const queryTransactions = async (query: string, transactions: Transaction[]): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  const summary = transactions.map(t => `${t.date}: ${t.merchantName || t.description} ($${t.amount}) [${t.category}] ${t.isInternalTransfer ? '(Transfer)' : ''}`).join('\n');
-
-  const prompt = `You are "The Teller", a warm, encouraging, and highly intelligent personal finance mentor. 
-  Answer the user's question about their spending history. Be conversational but accurate.
-  When they ask for "Real Spending", ignore internal transfers between accounts.
-  
-  Transactions:
-  ${summary}
-  
-  Question: ${query}`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-    });
-    return response.text || "I'm sorry, I couldn't quite find the answer to that in your history.";
-  } catch (e) {
-    return "I'm having a bit of trouble connecting to your records right now.";
-  }
-};
-
 export const getSpendingInsights = async (transactions: Transaction[]): Promise<SpendingInsight[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const realSpend = transactions.filter(t => t.category !== 'Account Transfer' && !t.isIncome);
   
-  const nonInternal = transactions.filter(t => !t.isInternalTransfer);
-  const summary = nonInternal.slice(0, 100).map(t => ({
-    m: t.merchantName,
+  const summary = realSpend.slice(0, 50).map(t => ({
+    m: t.merchantName || t.description,
     a: t.amount,
     c: t.category,
-    inc: t.isIncome
+    d: t.date
   }));
 
-  const prompt = `You are The Teller. Provide 4 friendly spending insights. 
-  Focus on "Real Spending" (actual expenses, not transfers).
-  Use encouraging language. One should be a celebration milestone.
+  const prompt = `You are "The Teller". Based on these transactions, generate 6 "Financial Awards" or insights.
+  Make them celebratory, funny, or very insightful. 
+  Include an icon from FontAwesome 6 (e.g. "fa-coffee", "fa-bolt", "fa-gem").
+  Provide a hex color that matches the theme of the award.
   Data: ${JSON.stringify(summary)}`;
 
   try {
@@ -136,9 +113,11 @@ export const getSpendingInsights = async (transactions: Transaction[]): Promise<
             properties: {
               title: { type: Type.STRING },
               description: { type: Type.STRING },
-              type: { type: Type.STRING, enum: ["positive", "warning", "info", "milestone"] }
+              type: { type: Type.STRING, enum: ["positive", "warning", "info", "milestone"] },
+              icon: { type: Type.STRING },
+              color: { type: Type.STRING }
             },
-            required: ["title", "description", "type"]
+            required: ["title", "description", "type", "icon", "color"]
           }
         }
       }
@@ -146,5 +125,71 @@ export const getSpendingInsights = async (transactions: Transaction[]): Promise<
     return JSON.parse(response.text || '[]');
   } catch (e) {
     return [];
+  }
+};
+
+export const suggestBudgets = async (transactions: Transaction[]): Promise<BudgetSuggestion[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const realSpend = transactions.filter(t => t.category !== 'Account Transfer' && !t.isIncome);
+  
+  // Group by category to find average monthly volumes
+  const catSummary: Record<string, number> = {};
+  realSpend.forEach(t => {
+    catSummary[t.category] = (catSummary[t.category] || 0) + t.amount;
+  });
+
+  const prompt = `You are a financial advisor. Review these spending categories and their total transaction history. 
+  Suggest monthly budgets for the top spending categories. 
+  Identify potential areas to trim or save.
+  Data: ${JSON.stringify(catSummary)}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              category: { type: Type.STRING },
+              suggestedLimit: { type: Type.NUMBER },
+              reason: { type: Type.STRING },
+              potentialSavings: { type: Type.NUMBER }
+            },
+            required: ["category", "suggestedLimit", "reason", "potentialSavings"]
+          }
+        }
+      }
+    });
+    return JSON.parse(response.text || '[]');
+  } catch (e) {
+    return [];
+  }
+};
+
+export const queryTransactions = async (query: string, transactions: Transaction[]): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const summary = transactions.slice(0, 200).map(t => `${t.date}: ${t.merchantName || t.description} ($${t.amount}) [${t.category}]`).join('\n');
+
+  const prompt = `You are "The Teller", a wise and friendly bank teller from a golden era of banking.
+  "What can your money tell you?" is your guiding thought.
+  Answer questions about the spending patterns. If you see transfers, explain they are excluded from spending totals.
+  
+  Data context:
+  ${summary}
+  
+  Question: ${query}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+    });
+    return response.text || "The vault is quiet on that matter, I'm afraid.";
+  } catch (e) {
+    return "I'm having a spot of trouble with the records.";
   }
 };

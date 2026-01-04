@@ -1,11 +1,11 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Transaction, SpendingInsight, SankeyData, ChatMessage, FinancialFingerprint } from './types';
-import { categorizeTransactions, getSpendingInsights, queryTransactions } from './services/geminiService';
+import { Transaction, SpendingInsight, SankeyData, ChatMessage, FinancialFingerprint, BudgetSuggestion } from './types';
+import { categorizeTransactions, getSpendingInsights, queryTransactions, suggestBudgets } from './services/geminiService';
 import SankeyChart from './components/SankeyChart';
 import Papa from 'papaparse';
 import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
 } from 'recharts';
 
 export const COLORS = ['#062c1a', '#2d1810', '#c5a059', '#634b3e', '#8c7851', '#dcd0b9', '#3e3e3e', '#e8e1d4'];
@@ -55,7 +55,7 @@ const Logo: React.FC<{ showTagline?: boolean; size?: 'sm' | 'md' | 'lg', isLight
       </div>
       <div className="flex flex-col">
         <h1 className={`font-black tracking-tight leading-none logo-text serif ${size === 'sm' ? 'text-xl' : size === 'lg' ? 'text-5xl' : 'text-3xl'} ${titleColor}`}>Teller</h1>
-        {showTagline && <span className={`font-medium tracking-tight serif ${size === 'lg' ? 'text-lg mt-1' : 'text-[10px]'} ${tagColor}`}>Help Making Your Money Taller.</span>}
+        {showTagline && <span className={`font-medium tracking-tight serif ${size === 'lg' ? 'text-lg mt-1' : 'text-[10px] md:text-[12px]'} ${tagColor}`}>Your Money's Story. Privately Told.</span>}
       </div>
     </div>
   );
@@ -72,15 +72,17 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : {};
   });
 
-  const [activeTab, setActiveTab] = useState<'home' | 'history' | 'assistant' | 'budgets'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'history' | 'assistant' | 'budgets' | 'about'>('home');
   const [isProcessing, setIsProcessing] = useState(false);
   const [insights, setInsights] = useState<SpendingInsight[]>([]);
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    { role: 'model', content: "Welcome to the Teller's desk. I've analyzed your financial records securely. How may I assist in making your money grow taller today?", isInitial: true }
+    { role: 'model', content: "Welcome back to the Teller's desk. What story shall we uncover today? Your privacy is sealed behind this counter.", isInitial: true }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -107,24 +109,42 @@ const App: React.FC = () => {
   const handleDemoData = () => {
     const today = new Date();
     const demo: Transaction[] = [
-      { id: 'd1', date: today.toISOString().split('T')[0], description: 'Monthly Salary', amount: 5000, category: 'Income', isIncome: true, source: 'Payroll' },
-      { id: 'd2', date: today.toISOString().split('T')[0], description: 'Rent Payment', amount: 2000, category: 'Housing', isIncome: false, source: 'Checking' },
-      { id: 'd3', date: today.toISOString().split('T')[0], description: 'Starbucks Coffee', amount: 6.50, category: 'Food & Drink', isIncome: false, source: 'Credit Card' },
-      { id: 'd4', date: today.toISOString().split('T')[0], description: 'Uber Trip', amount: 24.00, category: 'Transport', isIncome: false, source: 'Credit Card' },
-      { id: 'd5', date: today.toISOString().split('T')[0], description: 'Grocery Store', amount: 156.40, category: 'Food & Drink', isIncome: false, source: 'Checking' },
-      { id: 'd6', date: today.toISOString().split('T')[0], description: 'Amazon Order', amount: 89.99, category: 'Shopping', isIncome: false, source: 'Credit Card' },
-      { id: 'd7', date: today.toISOString().split('T')[0], description: 'Electric Bill', amount: 120.00, category: 'Bills & Utilities', isIncome: false, source: 'Checking' },
-      { id: 'd8', date: today.toISOString().split('T')[0], description: 'Gym Membership', amount: 50.00, category: 'Wellness & Health', isIncome: false, source: 'Checking' },
-      { id: 'd9', date: today.toISOString().split('T')[0], description: 'Netflix', amount: 19.99, category: 'Fun & Hobbies', isIncome: false, source: 'Credit Card' },
-      { id: 'd10', date: today.toISOString().split('T')[0], description: 'Friday Drinks', amount: 45.00, category: 'Food & Drink', isIncome: false, source: 'Credit Card' }
+      { id: 'd1', date: '2024-01-01', description: 'Monthly Salary', amount: 5000, category: 'Income', isIncome: true, source: 'Payroll' },
+      { id: 'd2', date: '2024-01-02', description: 'Rent Payment', amount: 2000, category: 'Housing', isIncome: false, source: 'Checking' },
+      { id: 'd3', date: '2024-01-03', description: 'Starbucks Coffee', amount: 6.50, category: 'Food & Drink', isIncome: false, source: 'Credit Card' },
+      { id: 'd4', date: '2024-01-05', description: 'Uber Trip', amount: 24.00, category: 'Transport', isIncome: false, source: 'Credit Card' },
+      { id: 'd5', date: '2024-01-07', description: 'Grocery Store', amount: 156.40, category: 'Food & Drink', isIncome: false, source: 'Checking' },
+      { id: 'd6', date: '2024-01-10', description: 'Amazon Order', amount: 89.99, category: 'Shopping', isIncome: false, source: 'Credit Card' },
+      { id: 'd7', date: '2024-01-15', description: 'Electric Bill', amount: 120.00, category: 'Bills & Utilities', isIncome: false, source: 'Checking' },
+      { id: 'd11', date: '2024-01-28', description: 'Payment to AMEX', amount: 1200, category: 'Account Transfer', isIncome: false, source: 'Checking' },
+      { id: 'd12', date: '2024-01-28', description: 'CC Payment Received', amount: 1200, category: 'Account Transfer', isIncome: true, source: 'Credit Card' }
     ];
     setTransactions(demo);
     setBudgets({ 'Food & Drink': 500, 'Shopping': 300, 'Transport': 200 });
+    setActiveTab('home');
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
+
+    // Check if it's a JSON backup file
+    if (files[0].name.endsWith('.json')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const backup = JSON.parse(e.target?.result as string);
+          if (backup.transactions && backup.budgets) {
+            setTransactions(backup.transactions);
+            setBudgets(backup.budgets);
+            alert("Vault backup restored successfully.");
+          }
+        } catch (err) { alert("Failed to restore backup."); }
+      };
+      reader.readAsText(files[0]);
+      return;
+    }
+
     setIsProcessing(true);
     try {
       let allNewTransactions: Transaction[] = [];
@@ -156,57 +176,71 @@ const App: React.FC = () => {
       const cats = await categorizeTransactions(allNewTransactions);
       const enriched = allNewTransactions.map(t => {
         const match = cats.find(c => c.id === t.id);
-        return { ...t, merchantName: match?.merchant, category: match?.category || 'Uncategorized' };
+        const category = match?.category || 'Uncategorized';
+        return { 
+          ...t, 
+          merchantName: match?.merchant, 
+          category: category,
+          isInternalTransfer: category === 'Account Transfer'
+        };
       });
       setTransactions([...transactions, ...enriched]);
       await refreshInsights();
     } catch (err) { console.error(err); } finally { setIsProcessing(false); }
   };
 
-  // Fixed: Defined filteredTransactions to resolve ReferenceErrors
+  const handleExportData = () => {
+    const data = JSON.stringify({ transactions, budgets }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `teller-vault-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            (t.merchantName?.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCategory = selectedCategory === 'all' || t.category === selectedCategory;
-      const matchesMonth = filterMonth === 'all' || t.date.startsWith(filterMonth);
+      const matchesMonth = filterMonth === 'all' || (t.date && t.date.startsWith(filterMonth));
       return matchesSearch && matchesCategory && matchesMonth;
     });
   }, [transactions, searchTerm, selectedCategory, filterMonth]);
 
-  // Fixed: Defined categoriesAvailable for the filter dropdown
   const categoriesAvailable = useMemo(() => {
     const cats = new Set(transactions.map(t => t.category));
     return Array.from(cats).sort();
   }, [transactions]);
 
-  // Fixed: Defined spendingCategories for budgeting logic
   const spendingCategories = useMemo(() => {
     return categoriesAvailable.filter(c => c !== 'Income' && c !== 'Account Transfer' && c !== 'Categorizing...');
   }, [categoriesAvailable]);
 
   const totals = useMemo(() => {
-    const realSpend = filteredTransactions.filter(t => !t.isIncome && !t.isInternalTransfer).reduce((s, t) => s + t.amount, 0);
-    const moneyIn = filteredTransactions.filter(t => t.isIncome && !t.isInternalTransfer).reduce((s, t) => s + t.amount, 0);
+    const realSpend = filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer').reduce((s, t) => s + t.amount, 0);
+    const moneyIn = filteredTransactions.filter(t => t.isIncome && t.category !== 'Account Transfer').reduce((s, t) => s + t.amount, 0);
     return { realSpend, moneyIn, net: moneyIn - realSpend };
   }, [filteredTransactions]);
 
-  const barData = useMemo(() => {
-    const categoryTotals = new Map<string, number>();
-    filteredTransactions.filter(t => !t.isIncome && !t.isInternalTransfer).forEach(t => {
-      categoryTotals.set(t.category, (categoryTotals.get(t.category) || 0) + t.amount);
+  const months = useMemo(() => {
+    const mSet = new Set<string>();
+    transactions.forEach(t => {
+      if (t.date && t.date.length >= 7) mSet.add(t.date.substring(0, 7));
     });
-    return Array.from(categoryTotals.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [filteredTransactions]);
+    return Array.from(mSet).sort().reverse();
+  }, [transactions]);
 
   const currentMonthSpending = useMemo(() => {
     const now = new Date();
     const currentM = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
     const monthlyData: Record<string, number> = {};
     transactions.forEach(t => {
-      const d = new Date(t.date);
-      const mKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
-      if (mKey === currentM && !t.isIncome && !t.isInternalTransfer) monthlyData[t.category] = (monthlyData[t.category] || 0) + t.amount;
+      if (t.date.startsWith(currentM) && !t.isIncome && t.category !== 'Account Transfer') {
+        monthlyData[t.category] = (monthlyData[t.category] || 0) + t.amount;
+      }
     });
     return monthlyData;
   }, [transactions]);
@@ -222,14 +256,14 @@ const App: React.FC = () => {
 
   const fingerprintData = useMemo(() => {
     if (transactions.length === 0) return [];
-    const txs = transactions.filter(t => !t.isIncome);
+    const txs = transactions.filter(t => !t.isIncome && t.category !== 'Account Transfer');
     const smallTxCount = txs.filter(t => t.amount < 25).length;
-    const impulsivity = (smallTxCount / txs.length) * 100;
+    const impulsivity = (smallTxCount / (txs.length || 1)) * 100;
     const weekendSpend = txs.filter(t => [0, 6].includes(new Date(t.date).getDay())).reduce((s, t) => s + t.amount, 0);
     const weekendEffect = (weekendSpend / (totals.realSpend || 1)) * 100;
     const essentialRatio = (txs.filter(t => ['Housing', 'Bills & Utilities', 'Transport'].includes(t.category)).reduce((s, t) => s + t.amount, 0) / (totals.realSpend || 1)) * 100;
-    const merchants = new Set(txs.map(t => t.description)).size;
-    const loyalty = (1 - (merchants / txs.length)) * 100;
+    const merchants = new Set(txs.map(t => t.merchantName || t.description)).size;
+    const loyalty = (1 - (merchants / (txs.length || 1))) * 100;
     return [
       { subject: 'Impulsivity', A: impulsivity, fullMark: 100 },
       { subject: 'Weekend Effect', A: weekendEffect, fullMark: 100 },
@@ -241,10 +275,10 @@ const App: React.FC = () => {
 
   const sankeyData = useMemo((): SankeyData => {
     if (filteredTransactions.length === 0) return { nodes: [], links: [] };
-    const nodesList: { name: string; id: string }[] = [{ name: "Capital Source", id: "source" }];
+    const nodesList: { name: string; id: string }[] = [{ name: "Flow Center", id: "source" }];
     const links: { source: number; target: number; value: number }[] = [];
     const categoryAggregates = new Map<string, number>();
-    filteredTransactions.filter(t => !t.isIncome && !t.isInternalTransfer).forEach(t => {
+    filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer').forEach(t => {
       categoryAggregates.set(t.category, (categoryAggregates.get(t.category) || 0) + t.amount);
     });
     categoryAggregates.forEach((amount, catName) => {
@@ -255,118 +289,127 @@ const App: React.FC = () => {
     return { nodes: nodesList, links };
   }, [filteredTransactions]);
 
-  const months = useMemo(() => {
-    const mSet = new Set<string>();
-    transactions.forEach(t => {
-      const d = new Date(t.date);
-      if (!isNaN(d.getTime())) mSet.add(`${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`);
+  const barData = useMemo(() => {
+    const categoryTotals = new Map<string, number>();
+    filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer').forEach(t => {
+      categoryTotals.set(t.category, (categoryTotals.get(t.category) || 0) + t.amount);
     });
-    return Array.from(mSet).sort().reverse();
-  }, [transactions]);
+    return Array.from(categoryTotals.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [filteredTransactions]);
 
-  const handleChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || isChatLoading) return;
-    const userMsg = chatInput;
-    setChatInput('');
-    setChatHistory(prev => [...prev, { role: 'user', content: userMsg }]);
-    setIsChatLoading(true);
-    const response = await queryTransactions(userMsg, transactions);
-    setChatHistory(prev => [...prev, { role: 'model', content: response }]);
-    setIsChatLoading(false);
+  const handleSuggest = async () => {
+    if (transactions.length === 0) return;
+    setIsSuggesting(true);
+    try {
+        const suggestions = await suggestBudgets(transactions);
+        suggestions.forEach(s => {
+            updateBudget(s.category, s.suggestedLimit);
+        });
+        alert("The Teller has suggested new monthly limits based on your historical averages.");
+    } finally {
+        setIsSuggesting(false);
+    }
   };
 
   const updateBudget = (category: string, limit: number) => {
     setBudgets(prev => ({ ...prev, [category]: limit }));
   };
 
-  const clearFilters = () => {
-    setFilterMonth('all');
-    setSelectedCategory('all');
-    setSearchTerm('');
+  const handleChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isChatLoading) return;
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
+    setIsChatLoading(true);
+    try {
+      const response = await queryTransactions(userMessage, transactions);
+      setChatHistory(prev => [...prev, { role: 'model', content: response }]);
+    } catch (error) {
+      setChatHistory(prev => [...prev, { role: 'model', content: "The Teller is away for a moment." }]);
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <aside className="w-80 bg-[#062c1a] text-white flex flex-col p-10 border-r-4 border-[#2d1810] shrink-0">
-        <div className="mb-16">
+    <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-[#fdfaf3]">
+      {/* Mobile Top Header */}
+      <div className="lg:hidden h-16 bg-[#062c1a] text-white flex items-center justify-between px-6 z-50 shadow-md">
+        <Logo size="sm" isLight showTagline={false} />
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-xl w-10 h-10 flex items-center justify-center rounded-full active:bg-white/10">
+            <i className={`fas ${isSidebarOpen ? 'fa-times' : 'fa-bars'}`}></i>
+        </button>
+      </div>
+
+      {/* Sidebar Navigation */}
+      <aside className={`fixed lg:relative inset-y-0 left-0 w-80 bg-[#062c1a] text-white flex flex-col p-8 md:p-10 border-r-4 border-[#2d1810] shrink-0 z-40 transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="mb-12 md:mb-16 hidden lg:block">
           <Logo size="md" isLight={true} />
         </div>
-        <nav className="flex-grow space-y-4">
-          <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'home' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
+        <nav className="flex-grow space-y-2 md:space-y-3">
+          <button onClick={() => {setActiveTab('home'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'home' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
             <i className="fas fa-landmark w-5"></i> Spending View
           </button>
-          <button onClick={() => setActiveTab('budgets')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'budgets' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
+          <button onClick={() => {setActiveTab('budgets'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'budgets' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
             <i className="fas fa-vault w-5"></i> Budget Office
           </button>
-          <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'history' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
+          <button onClick={() => {setActiveTab('history'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'history' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
             <i className="fas fa-scroll w-5"></i> Activity Record
           </button>
-          <button onClick={() => setActiveTab('assistant')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'assistant' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
+          <button onClick={() => {setActiveTab('assistant'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'assistant' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
             <i className="fas fa-user-tie w-5"></i> Consult the Teller
           </button>
+          <button onClick={() => {setActiveTab('about'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'about' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
+            <i className="fas fa-circle-question w-5"></i> About & Privacy
+          </button>
         </nav>
-        <div className="mt-auto pt-8 border-t border-emerald-900/40">
-           <div className="bg-emerald-950/40 p-6 rounded-xl border border-emerald-900/50 mb-8">
-              <div className="flex items-center gap-3 mb-3">
-                 <div className="w-2 h-2 rounded-full bg-[#c5a059] animate-pulse"></div>
-                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Vault Security Active</p>
-              </div>
-              <p className="text-[11px] text-emerald-100/50 leading-relaxed font-medium">Data stays local on your machine.</p>
-           </div>
-           <button onClick={() => { if(confirm("Clear local data?")) { localStorage.clear(); window.location.reload(); } }} className="text-[10px] text-emerald-900/60 hover:text-orange-300 font-black uppercase tracking-widest flex items-center gap-2 transition-all">
+        <div className="mt-auto pt-8 border-t border-emerald-900/40 space-y-4">
+           <button onClick={handleExportData} className="w-full text-[10px] text-emerald-100/50 hover:text-[#c5a059] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+             <i className="fas fa-download"></i> Download Vault Backup
+           </button>
+           <p className="text-[10px] text-emerald-100/20 uppercase tracking-[0.2em] font-black text-center italic">"What is your money telling you?"</p>
+           <button onClick={() => { if(confirm("Clear local data?")) { localStorage.clear(); window.location.reload(); } }} className="w-full text-[10px] text-emerald-900/60 hover:text-orange-300 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
              <i className="fas fa-broom"></i> Re-lock Vault
            </button>
         </div>
       </aside>
 
+      {/* Main Content Area */}
       <main className="flex-grow flex flex-col overflow-hidden bg-[#fdfaf3]">
-        <header className="h-24 bg-[#fdfaf3] border-b-2 border-[#dcd0b9] flex items-center justify-between px-12 z-10 shadow-sm">
-           <div className="flex flex-col">
-              <div className="flex items-center gap-3">
-                <Logo size="sm" showTagline={false} />
-                <div className="h-6 w-[2px] bg-[#dcd0b9] mx-2"></div>
-                <h2 className="text-xl font-black text-[#062c1a] serif tracking-tight">Help Making Your Money Taller</h2>
-              </div>
+        <header className="hidden lg:flex h-24 bg-[#fdfaf3] border-b-2 border-[#dcd0b9] items-center justify-between px-12 z-10 shadow-sm shrink-0">
+           <div className="flex items-center gap-3">
+              <Logo size="sm" showTagline={false} />
+              <div className="h-6 w-[2px] bg-[#dcd0b9] mx-2"></div>
+              <h2 className="text-xl font-black text-[#062c1a] serif tracking-tight">Financial Ledger</h2>
            </div>
-           <div className="flex items-center gap-8">
-             {transactions.length > 0 && (
-               <div className="flex items-center gap-4 border-r-2 border-[#dcd0b9] pr-8">
-                  <div className="text-right">
-                     <p className="text-[9px] font-black text-[#8c7851] uppercase tracking-widest">Balance Delta</p>
-                     <p className={`text-sm font-black ${totals.net >= 0 ? 'text-green-800' : 'text-red-900'}`}>
-                       {totals.net >= 0 ? '+' : '-'}${Math.abs(totals.net).toLocaleString()}
-                     </p>
-                  </div>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${totals.net >= 0 ? 'border-green-800 text-green-800' : 'border-red-900 text-red-900'}`}>
-                     <i className={`fas ${totals.net >= 0 ? 'fa-caret-up' : 'fa-caret-down'}`}></i>
-                  </div>
-               </div>
-             )}
+           <div className="flex items-center gap-4">
+             <button onClick={handleExportData} className="px-6 py-4 rounded-md text-[11px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-900 border border-emerald-200 hover:bg-emerald-200 transition-all flex items-center gap-2">
+               <i className="fas fa-download"></i> Backup
+             </button>
              <label className="cursor-pointer brass-button text-white px-8 py-4 rounded-md text-[11px] font-black uppercase tracking-widest shadow-lg active:scale-95 flex items-center gap-3 border border-amber-600/30">
-               <i className="fas fa-upload"></i> Import Records
-               <input type="file" className="hidden" accept=".csv" multiple onChange={handleFileUpload} />
+               <i className="fas fa-file-arrow-up"></i> Import records
+               <input type="file" className="hidden" accept=".csv,.json" multiple onChange={handleFileUpload} />
              </label>
            </div>
         </header>
 
-        <div className="flex-grow overflow-y-auto custom-scrollbar hero-gradient">
+        <div className="flex-grow overflow-y-auto custom-scrollbar hero-gradient p-4 md:p-8 lg:p-12">
           {transactions.length === 0 && !isProcessing ? (
-            <div className="max-w-5xl mx-auto py-16 px-8 flex flex-col lg:flex-row items-center gap-16">
+            <div className="max-w-5xl mx-auto py-8 lg:py-16 flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
               <div className="w-full lg:w-1/2">
-                 <img src={TELLER_ILLUSTRATION} className="rounded-[5rem] shadow-2xl border-[12px] border-white object-cover aspect-square" alt="Vintage Bank Scene" />
+                 <img src={TELLER_ILLUSTRATION} className="rounded-3xl lg:rounded-[5rem] shadow-2xl border-[6px] lg:border-[12px] border-white object-cover aspect-square" alt="Vintage Bank Scene" />
               </div>
-              <div className="w-full lg:w-1/2 space-y-10">
+              <div className="w-full lg:w-1/2 space-y-8 lg:space-y-10">
                 <Logo size="lg" />
-                <p className="text-slate-600 text-lg leading-relaxed serif italic">"Information is the first step toward height."</p>
-                <p className="text-slate-600 text-md">Import your bank's CSV files to generate advanced financial visualizations locally and privately.</p>
-                <div className="flex gap-4">
-                  <label className="cursor-pointer brass-button text-white px-12 py-6 rounded-xl font-black shadow-2xl text-xl uppercase tracking-widest border border-amber-600/30">
-                    Step up to counter →
-                    <input type="file" className="hidden" accept=".csv" multiple onChange={handleFileUpload} />
+                <p className="text-slate-600 text-lg md:text-2xl leading-relaxed serif italic">"Every coin tells a tale, if you know how to listen."</p>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <label className="cursor-pointer brass-button text-white px-12 py-6 rounded-xl font-black shadow-2xl text-xl uppercase tracking-widest border border-amber-600/30 text-center">
+                    Begin Import →
+                    <input type="file" className="hidden" accept=".csv,.json" multiple onChange={handleFileUpload} />
                   </label>
                   <button onClick={handleDemoData} className="px-12 py-6 rounded-xl font-black text-[#062c1a] bg-[#dcd0b9]/30 border-2 border-[#dcd0b9] hover:bg-[#dcd0b9]/50 transition-all text-xl uppercase tracking-widest">
-                    View Demo Records
+                    Demo Mode
                   </button>
                 </div>
               </div>
@@ -377,73 +420,101 @@ const App: React.FC = () => {
               <h3 className="text-4xl font-black text-[#062c1a] serif italic text-center">Balancing the Ledger...</h3>
             </div>
           ) : (
-            <div className="animate-in fade-in space-y-12 p-12 max-w-7xl mx-auto">
+            <div className="animate-in fade-in space-y-8 lg:space-y-12 max-w-7xl mx-auto pb-12">
+              
               {activeTab === 'home' && (
-                <div className="space-y-12">
-                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                    <div className="bg-white p-10 rounded-2xl card-shadow border-t-8 border-[#062c1a]">
-                       <p className="text-[10px] font-black text-[#8c7851] uppercase tracking-widest mb-4">Total Expenses</p>
-                       <h2 className="text-5xl font-black text-[#062c1a] tracking-tight serif">${totals.realSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h2>
+                <div className="space-y-8 lg:space-y-12">
+                  {/* Swipable Celebratory Awards */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between px-2">
+                        <h3 className="text-xl font-black serif text-[#062c1a] flex items-center gap-2">
+                            The Teller's Recognition <i className="fas fa-medal text-amber-500"></i>
+                        </h3>
+                        <p className="text-[10px] font-bold text-[#8c7851] uppercase tracking-widest hidden md:block">Scroll for more insights</p>
                     </div>
-                    <div className="bg-white p-10 rounded-2xl card-shadow border-t-8 border-[#c5a059] cursor-pointer" onClick={() => setActiveTab('budgets')}>
-                       <p className="text-[10px] font-black text-[#8c7851] uppercase tracking-widest mb-4">Budget Health</p>
-                       <div className="flex items-end justify-between">
-                         <h2 className={`text-4xl font-black serif ${budgetSummary.ratio > 1 ? 'text-red-900' : 'text-[#062c1a]'}`}>{Math.round(budgetSummary.ratio * 100)}%</h2>
-                         <p className="text-[10px] font-bold text-[#8c7851] mb-2 uppercase">Used</p>
-                       </div>
-                       <div className="mt-4 h-1.5 w-full bg-[#fdfaf3] rounded-full overflow-hidden border border-[#dcd0b9]">
-                         <div className={`h-full transition-all duration-1000 ${budgetSummary.ratio > 0.9 ? 'bg-[#2d1810]' : 'bg-[#062c1a]'}`} style={{ width: `${Math.min(100, budgetSummary.ratio * 100)}%` }}></div>
-                       </div>
+                    <div className="flex gap-4 md:gap-6 overflow-x-auto pb-6 snap-x custom-scrollbar">
+                        {insights.map((ins, i) => (
+                            <div key={i} className="min-w-[280px] md:min-w-[320px] snap-center p-6 md:p-8 rounded-3xl shadow-xl bg-white border-b-8 flex flex-col justify-between transition-transform hover:scale-[1.02] relative overflow-hidden" style={{ borderColor: ins.color }}>
+                                <div className="absolute top-[-20px] right-[-20px] opacity-5 text-9xl">
+                                    <i className={`fas ${ins.icon}`}></i>
+                                </div>
+                                <div className="flex justify-between items-start mb-4 md:mb-6 relative z-10">
+                                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center text-xl md:text-2xl text-white shadow-lg" style={{ backgroundColor: ins.color }}>
+                                        <i className={`fas ${ins.icon}`}></i>
+                                    </div>
+                                    <div className="bg-[#fdfaf3] px-3 py-1 rounded-full border border-[#dcd0b9] text-[9px] font-black uppercase tracking-widest text-[#8c7851]">Award No. {i+1}</div>
+                                </div>
+                                <div className="relative z-10">
+                                    <h4 className="text-lg font-black serif italic mb-2 leading-tight text-[#062c1a]">{ins.title}</h4>
+                                    <p className="text-[11px] text-[#3e3e3e] leading-relaxed font-medium opacity-80">{ins.description}</p>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    {insights.slice(0, 2).map((ins, i) => (
-                      <div key={i} className={`p-10 rounded-2xl card-shadow border-t-8 border-[#c5a059] ${ins.type === 'milestone' ? 'bg-[#062c1a] text-white' : 'bg-white'}`}>
-                        <h4 className="text-base font-black serif italic mb-2 leading-tight">{ins.title}</h4>
-                        <p className="text-[12px] opacity-70 leading-relaxed">{ins.description}</p>
-                      </div>
-                    ))}
                   </div>
 
-                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
-                    <div className="xl:col-span-8 space-y-12">
-                      <div className="bg-white p-12 rounded-3xl card-shadow border border-[#dcd0b9]">
-                         <div className="flex items-center justify-between mb-10">
-                            <h3 className="text-2xl font-black text-[#062c1a] serif italic">Capital Flow Architecture</h3>
-                            <div className="flex bg-[#fdfaf3] p-1 rounded-xl border-2 border-[#dcd0b9]">
-                               <button onClick={() => setFilterMonth('all')} className={`px-6 py-3 rounded-lg text-[10px] font-black uppercase ${filterMonth === 'all' ? 'bg-[#062c1a] text-white' : 'text-[#8c7851]'}`}>Full Record</button>
-                               {months.slice(0, 2).map(m => (
-                                 <button key={m} onClick={() => setFilterMonth(m)} className={`px-6 py-3 rounded-lg text-[10px] font-black uppercase ${filterMonth === m ? 'bg-[#062c1a] text-white' : 'text-[#8c7851]'}`}>{m}</button>
+                  {/* Expected Values Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                    <div className="bg-white p-8 lg:p-10 rounded-2xl card-shadow border-t-8 border-[#062c1a]">
+                       <p className="text-[10px] font-black text-[#8c7851] uppercase tracking-widest mb-4">Total Real Spending</p>
+                       <h2 className="text-3xl lg:text-5xl font-black text-[#062c1a] tracking-tight serif">${totals.realSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</h2>
+                       <p className="text-[9px] text-[#8c7851] mt-2 font-bold uppercase italic opacity-60">Excluding transfers</p>
+                    </div>
+                    <div className="bg-white p-8 lg:p-10 rounded-2xl card-shadow border-t-8 border-indigo-900">
+                       <p className="text-[10px] font-black text-[#8c7851] uppercase tracking-widest mb-4">Net Narrative Position</p>
+                       <h2 className={`text-3xl lg:text-4xl font-black serif ${totals.net >= 0 ? 'text-green-800' : 'text-red-900'}`}>{totals.net >= 0 ? '+' : '-'}${Math.abs(totals.net).toLocaleString()}</h2>
+                       <p className="text-[9px] text-[#8c7851] mt-2 font-bold uppercase italic opacity-60">Total Delta</p>
+                    </div>
+                    <div className="bg-white p-8 lg:p-10 rounded-2xl card-shadow border-t-8 border-[#c5a059]">
+                       <p className="text-[10px] font-black text-[#8c7851] uppercase tracking-widest mb-4">Avg Monthly Outflow</p>
+                       <h2 className="text-3xl lg:text-4xl font-black text-[#062c1a] serif">${(totals.realSpend / (months.length || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</h2>
+                       <p className="text-[9px] text-[#8c7851] mt-2 font-bold uppercase italic opacity-60">Over {months.length} mo.</p>
+                    </div>
+                    <div className="bg-white p-8 lg:p-10 rounded-2xl card-shadow border-t-8 border-[#2d1810]">
+                       <p className="text-[10px] font-black text-[#8c7851] uppercase tracking-widest mb-4">Avg Monthly Inbound</p>
+                       <h2 className="text-3xl lg:text-4xl font-black text-[#062c1a] serif">${(totals.moneyIn / (months.length || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</h2>
+                       <p className="text-[9px] text-[#8c7851] mt-2 font-bold uppercase italic opacity-60">Historical avg</p>
+                    </div>
+                  </div>
+
+                  {/* Visualizations Grid */}
+                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 lg:gap-12">
+                    <div className="xl:col-span-8 space-y-8 lg:space-y-12">
+                      <div className="bg-white p-6 md:p-8 lg:p-12 rounded-3xl card-shadow border border-[#dcd0b9] relative overflow-hidden">
+                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 md:mb-10 gap-4">
+                            <h3 className="text-xl md:text-2xl font-black text-[#062c1a] serif italic flex items-center gap-3">
+                              The Capital River 
+                              <div className="group relative">
+                                <i className="fas fa-circle-info text-xs text-[#8c7851] cursor-help"></i>
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover:block w-56 p-4 bg-[#2d1810] text-white text-[10px] rounded-xl shadow-2xl z-20 leading-relaxed font-medium">
+                                  This diagram tracks spending flows. Internal transfers (like CC payments) are excluded to ensure accuracy.
+                                </div>
+                              </div>
+                            </h3>
+                            <div className="flex bg-[#fdfaf3] p-1 rounded-xl border-2 border-[#dcd0b9] overflow-x-auto shadow-inner">
+                               <button onClick={() => setFilterMonth('all')} className={`px-4 md:px-5 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase whitespace-nowrap transition-all ${filterMonth === 'all' ? 'bg-[#062c1a] text-white shadow-lg' : 'text-[#8c7851] hover:bg-white'}`}>All-Time</button>
+                               {months.slice(0, 3).map(m => (
+                                 <button key={m} onClick={() => setFilterMonth(m)} className={`px-4 md:px-5 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase whitespace-nowrap transition-all ${filterMonth === m ? 'bg-[#062c1a] text-white shadow-lg' : 'text-[#8c7851] hover:bg-white'}`}>{m}</button>
                                ))}
                             </div>
                          </div>
-                         <SankeyChart data={sankeyData} height={400} onNodeClick={(name) => { setSelectedCategory(name); setActiveTab('history'); }} />
-                      </div>
-
-                      <div className="bg-white p-12 rounded-3xl card-shadow border border-[#dcd0b9]">
-                         <h3 className="text-2xl font-black text-[#062c1a] serif italic mb-10">Decision Waterfall</h3>
-                         <div className="space-y-4">
-                            <div className="flex justify-between items-center bg-[#062c1a] text-white p-6 rounded-xl">
-                               <span className="font-black serif italic">Starting Capital (Income)</span>
-                               <span className="font-black text-xl">${totals.moneyIn.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center bg-red-900/10 text-red-900 p-6 rounded-xl border border-red-900/20">
-                               <span className="font-bold">Essential Expenses</span>
-                               <span className="font-black">-${(totals.realSpend * 0.6).toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center bg-amber-900/10 text-[#2d1810] p-6 rounded-xl border border-amber-900/20">
-                               <span className="font-bold">Discretionary Spending</span>
-                               <span className="font-black">-${(totals.realSpend * 0.4).toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center bg-emerald-100 text-[#062c1a] p-8 rounded-2xl border-2 border-[#062c1a] mt-8 shadow-inner">
-                               <span className="font-black text-xl serif italic">Net Growth Position</span>
-                               <span className="font-black text-2xl">${totals.net.toLocaleString()}</span>
-                            </div>
+                         <div className="overflow-x-auto min-h-[300px] lg:min-h-[400px]">
+                            <SankeyChart data={sankeyData} height={400} onNodeClick={(name) => { setSelectedCategory(name); setActiveTab('history'); }} />
                          </div>
                       </div>
                     </div>
 
-                    <div className="xl:col-span-4 space-y-12">
-                       <div className="bg-white p-10 rounded-3xl card-shadow border border-[#dcd0b9]">
-                          <h4 className="text-[10px] font-black text-[#8c7851] uppercase tracking-widest mb-8">Financial Fingerprint</h4>
+                    <div className="xl:col-span-4 space-y-8 lg:space-y-12">
+                       <div className="bg-white p-8 md:p-10 rounded-3xl card-shadow border border-[#dcd0b9]">
+                          <h4 className="text-[10px] font-black text-[#8c7851] uppercase tracking-widest mb-8 flex items-center justify-between">
+                            Financial Fingerprint
+                            <div className="group relative">
+                                <i className="fas fa-circle-info text-xs text-[#8c7851] cursor-help"></i>
+                                <div className="absolute top-full right-0 mt-3 hidden group-hover:block w-56 p-4 bg-[#2d1810] text-white text-[10px] rounded-xl shadow-2xl z-20 leading-relaxed font-medium">
+                                  Your unique spending DNA geometry.
+                                </div>
+                              </div>
+                          </h4>
                           <div className="h-64">
                             <ResponsiveContainer width="100%" height="100%">
                               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={fingerprintData}>
@@ -455,30 +526,35 @@ const App: React.FC = () => {
                           </div>
                           <div className="mt-8 space-y-4">
                              <div className="p-4 bg-[#fdfaf3] rounded-xl border border-[#dcd0b9]">
-                                <p className="text-[10px] font-black uppercase text-[#8c7851] mb-1">Top Spend Intensity</p>
-                                <p className="text-sm font-black text-[#062c1a] serif italic">{barData[0]?.name || 'N/A'}</p>
+                                <p className="text-[10px] font-black uppercase text-[#8c7851] mb-1">Peak Intensity</p>
+                                <p className="text-sm font-black text-[#062c1a] serif italic truncate">{barData[0]?.name || 'N/A'}</p>
                              </div>
                              <div className="p-4 bg-[#fdfaf3] rounded-xl border border-[#dcd0b9]">
-                                <p className="text-[10px] font-black uppercase text-[#8c7851] mb-1">Habit Risk</p>
-                                <p className="text-sm font-black text-red-900 serif italic">Subscription Bloat Detected</p>
+                                <p className="text-[10px] font-black uppercase text-[#8c7851] mb-1">Vault Status</p>
+                                <p className="text-sm font-black text-emerald-800 serif italic">Local Storage Active</p>
                              </div>
                           </div>
                        </div>
 
-                       <div className="bg-[#062c1a] p-10 rounded-3xl text-white shadow-2xl">
-                          <h4 className="text-[10px] font-black text-[#c5a059] uppercase tracking-widest mb-6">The Habit Tax</h4>
+                       <div className="bg-[#062c1a] p-10 rounded-3xl text-white shadow-2xl relative overflow-hidden group">
+                          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent"></div>
+                          <h4 className="text-[10px] font-black text-[#c5a059] uppercase tracking-widest mb-6 flex items-center justify-between">
+                            The "Habit Tax" Assessment
+                            <div className="group relative">
+                                <i className="fas fa-circle-info text-xs text-[#c5a059] cursor-help"></i>
+                                <div className="absolute top-full right-0 mt-3 hidden group-hover:block w-56 p-4 bg-zinc-800 text-white text-[10px] rounded-xl shadow-2xl z-20 font-medium normal-case tracking-normal">
+                                  How small leaks impact your legacy.
+                                </div>
+                              </div>
+                          </h4>
                           <div className="space-y-6">
                              <div>
-                                <p className="text-xs font-bold text-emerald-100/60 mb-2">If you cook 2x more/week:</p>
-                                <p className="text-2xl font-black serif italic text-[#c5a059]">+$1,200/Year</p>
-                             </div>
-                             <div>
-                                <p className="text-xs font-bold text-emerald-100/60 mb-2">If you skip 1 coffee/week:</p>
-                                <p className="text-2xl font-black serif italic text-[#c5a059]">+$240/Year</p>
+                                <p className="text-[10px] font-bold text-emerald-100/60 mb-1 tracking-wider uppercase">Redirect Minor Streams</p>
+                                <p className="text-3xl font-black serif italic text-[#c5a059]">+$1,200/Year</p>
                              </div>
                              <hr className="border-emerald-900" />
-                             <p className="text-[10px] font-black uppercase tracking-widest text-[#c5a059]/60">10 Year Impact (7% APY)</p>
-                             <p className="text-3xl font-black serif text-white">$21,480</p>
+                             <p className="text-[10px] font-black uppercase tracking-widest text-[#c5a059]/60">10-Year Nest Egg (7%)</p>
+                             <p className="text-4xl font-black serif text-white">$17,730</p>
                           </div>
                        </div>
                     </div>
@@ -487,37 +563,50 @@ const App: React.FC = () => {
               )}
 
               {activeTab === 'budgets' && (
-                <div className="max-w-6xl mx-auto space-y-12">
-                  <div className="bg-[#062c1a] p-16 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+                <div className="max-w-6xl mx-auto space-y-8 md:space-y-12">
+                  <div className="bg-[#062c1a] p-10 lg:p-16 rounded-3xl lg:rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-48 -mt-48"></div>
-                    <div className="relative z-10">
-                       <h3 className="text-5xl font-black serif italic text-[#c5a059] mb-4">The Budget Office</h3>
-                       <p className="text-emerald-100/60 font-medium tracking-wide max-w-md">Assign specific limits to your monthly spending classifications.</p>
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                       <div className="max-w-xl">
+                            <h3 className="text-3xl md:text-5xl font-black serif italic text-[#c5a059] mb-4">The Budget Office</h3>
+                            <p className="text-emerald-100/60 font-medium tracking-wide leading-relaxed">Assign monthly limits to your narrative chapters. The Teller analyzes your averages to suggest reasonable boundaries.</p>
+                       </div>
+                       <button 
+                        onClick={handleSuggest}
+                        disabled={isSuggesting}
+                        className={`px-8 md:px-10 py-4 md:py-5 rounded-xl font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 border border-amber-600/30 ${isSuggesting ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' : 'brass-button text-white active:scale-95'}`}>
+                            {isSuggesting ? <i className="fas fa-spinner animate-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>}
+                            {isSuggesting ? "Analyzing..." : "Suggest Limits"}
+                       </button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                     {spendingCategories.map((cat) => {
                       const limit = budgets[cat] || 0, spent = currentMonthSpending[cat] || 0, ratio = limit > 0 ? (spent / limit) : 0;
                       return (
-                        <div key={cat} className="bg-white p-8 rounded-3xl card-shadow border border-[#dcd0b9] group hover:border-[#c5a059] transition-all">
-                          <div className="flex items-center gap-4 mb-8">
-                            <div className="w-12 h-12 rounded-xl bg-[#fdfaf3] border border-[#dcd0b9] flex items-center justify-center text-[#c5a059] group-hover:bg-[#c5a059] group-hover:text-white transition-all">
+                        <div key={cat} className="bg-white p-6 md:p-8 rounded-3xl card-shadow border border-[#dcd0b9] group hover:border-[#c5a059] transition-all">
+                          <div className="flex items-center gap-4 mb-6 md:mb-8">
+                            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-[#fdfaf3] border border-[#dcd0b9] flex items-center justify-center text-[#c5a059] group-hover:bg-[#c5a059] group-hover:text-white transition-all">
                               <i className={`fas ${CATEGORY_ICONS[cat] || 'fa-tag'}`}></i>
                             </div>
                             <h4 className="font-black text-[#062c1a] serif italic">{cat}</h4>
                           </div>
                           <div className="flex justify-between items-end mb-6">
                              <div>
-                               <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Spent</p>
-                               <p className="text-2xl font-black">${spent.toLocaleString()}</p>
+                               <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Spent (Mo.)</p>
+                               <p className="text-xl md:text-2xl font-black">${spent.toLocaleString()}</p>
                              </div>
                              <div className="text-right">
-                               <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Limit</p>
-                               <input type="number" className="w-24 bg-[#fdfaf3] border-b-2 border-[#dcd0b9] text-right font-black p-1 focus:border-[#c5a059] outline-none" value={limit || ''} placeholder="Set Limit" onChange={(e) => updateBudget(cat, parseFloat(e.target.value) || 0)} />
+                               <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Monthly Limit</p>
+                               <div className="flex items-center gap-1">
+                                    <span className="text-[#8c7851] font-black">$</span>
+                                    <input type="number" className="w-20 md:w-24 bg-[#fdfaf3] border-b-2 border-[#dcd0b9] text-right font-black p-1 focus:border-[#c5a059] outline-none" value={limit || ''} placeholder="0" onChange={(e) => updateBudget(cat, parseFloat(e.target.value) || 0)} />
+                               </div>
                              </div>
                           </div>
                           <div className="h-2 w-full bg-[#fdfaf3] rounded-full overflow-hidden border border-[#dcd0b9]">
-                             <div className={`h-full transition-all duration-700 ${ratio > 1 ? 'bg-[#2d1810]' : ratio > 0.8 ? 'bg-[#c5a059]' : 'bg-[#062c1a]'}`} style={{ width: `${Math.min(100, ratio * 100)}%` }}></div>
+                             <div className={`h-full transition-all duration-700 ${ratio > 1 ? 'bg-red-800' : ratio > 0.8 ? 'bg-[#c5a059]' : 'bg-[#062c1a]'}`} style={{ width: `${Math.min(100, ratio * 100)}%` }}></div>
                           </div>
                         </div>
                       );
@@ -527,76 +616,138 @@ const App: React.FC = () => {
               )}
 
               {activeTab === 'history' && (
-                <div className="max-w-6xl mx-auto space-y-8">
-                  <div className="bg-white p-8 rounded-2xl card-shadow border border-[#dcd0b9] flex flex-wrap items-center gap-6">
-                     <div className="relative flex-grow min-w-[300px]">
+                <div className="max-w-6xl mx-auto space-y-6 md:space-y-8">
+                  <div className="bg-white p-6 md:p-8 rounded-2xl card-shadow border border-[#dcd0b9] flex flex-col md:flex-row items-center gap-4 md:gap-6">
+                     <div className="relative flex-grow w-full">
                         <i className="fas fa-magnifying-glass absolute left-6 top-1/2 -translate-y-1/2 text-[#dcd0b9]"></i>
-                        <input type="text" placeholder="Search..." className="w-full bg-[#fdfaf3] border-2 border-[#dcd0b9] rounded-lg py-5 pl-16 pr-8 text-sm font-bold focus:border-[#c5a059] outline-none transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                        <input type="text" placeholder="Search the narratives..." className="w-full bg-[#fdfaf3] border-2 border-[#dcd0b9] rounded-lg py-4 md:py-5 pl-16 pr-8 text-sm font-bold focus:border-[#c5a059] outline-none transition-all shadow-inner" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                      </div>
-                     <select className="bg-[#fdfaf3] border-2 border-[#dcd0b9] rounded-lg py-5 px-10 text-sm font-bold outline-none cursor-pointer focus:border-[#c5a059] transition-all" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
-                        <option value="all">All Categories</option>
-                        {categoriesAvailable.map(c => <option key={c} value={c}>{c}</option>)}
-                     </select>
-                     <button onClick={clearFilters} className="w-12 h-12 rounded-lg bg-[#fdfaf3] border-2 border-[#dcd0b9] hover:bg-white flex items-center justify-center text-[#8c7851] transition-all"><i className="fas fa-xmark"></i></button>
+                     <div className="flex w-full md:w-auto gap-4">
+                        <select className="flex-grow md:w-auto bg-[#fdfaf3] border-2 border-[#dcd0b9] rounded-lg py-4 md:py-5 px-6 md:px-10 text-sm font-bold outline-none cursor-pointer focus:border-[#c5a059] transition-all" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+                            <option value="all">Every Chapter</option>
+                            {categoriesAvailable.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <button onClick={() => {setSearchTerm(''); setSelectedCategory('all')}} className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-[#fdfaf3] border-2 border-[#dcd0b9] hover:bg-white flex items-center justify-center text-[#8c7851] transition-all"><i className="fas fa-rotate-left"></i></button>
+                     </div>
                   </div>
-                  <div className="bg-white rounded-3xl card-shadow border border-[#dcd0b9] overflow-hidden">
-                    <table className="w-full text-left">
-                      <thead className="bg-[#fdfaf3] text-[10px] font-black uppercase tracking-widest text-[#8c7851] border-b-2 border-[#dcd0b9]">
-                        <tr><th className="py-10 px-12">Entity</th><th className="py-10 px-12">Category</th><th className="py-10 px-12 text-right">Amount</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#dcd0b9]/40">
-                        {filteredTransactions.map(t => (
-                          <tr key={t.id} className="hover:bg-[#fdfaf3] transition-all">
-                            <td className="py-8 px-12">
-                               <p className="text-sm font-black serif italic text-[#062c1a] mb-1">{t.merchantName || t.description}</p>
-                               <p className="text-[10px] text-[#8c7851] font-bold uppercase tracking-wider">{t.date}</p>
-                            </td>
-                            <td className="py-8 px-12">
-                               <span className="px-4 py-2 rounded-md text-[9px] font-black uppercase tracking-widest border border-[#c5a059] text-[#062c1a]">{t.category}</span>
-                            </td>
-                            <td className={`py-8 px-12 text-right text-sm font-black ${t.isIncome ? 'text-green-800' : 'text-[#2d1810]'}`}>
-                               ${t.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+
+                  <div className="bg-white rounded-2xl md:rounded-3xl card-shadow border border-[#dcd0b9] overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                        <thead className="bg-[#fdfaf3] text-[10px] font-black uppercase tracking-widest text-[#8c7851] border-b-2 border-[#dcd0b9]">
+                            <tr>
+                            <th className="py-6 md:py-10 px-6 md:px-12 whitespace-nowrap">Entity</th>
+                            <th className="py-6 md:py-10 px-6 md:px-12">Classification</th>
+                            <th className="py-6 md:py-10 px-6 md:px-12 text-right">Value</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#dcd0b9]/40">
+                            {filteredTransactions.map(t => (
+                            <tr key={t.id} className="hover:bg-[#fdfaf3] transition-all group">
+                                <td className="py-6 md:py-8 px-6 md:px-12">
+                                <p className="text-sm font-black serif italic text-[#062c1a] mb-1 truncate max-w-[140px] md:max-w-none">{t.merchantName || t.description}</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-[10px] text-[#8c7851] font-bold uppercase tracking-wider">{t.date}</p>
+                                    <span className="text-[8px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-400 font-black uppercase tracking-tighter truncate max-w-[80px]">{t.source.split('.csv')[0]}</span>
+                                </div>
+                                </td>
+                                <td className="py-6 md:py-8 px-6 md:px-12">
+                                <span className={`px-3 md:px-4 py-1.5 md:py-2 rounded-md text-[9px] font-black uppercase tracking-widest border border-[#c5a059] ${t.category === 'Account Transfer' ? 'bg-[#2d1810] text-white border-transparent' : 'text-[#062c1a]'}`}>{t.category}</span>
+                                </td>
+                                <td className={`py-6 md:py-8 px-6 md:px-12 text-right text-sm font-black ${t.isIncome ? 'text-green-800' : 'text-[#2d1810]'}`}>
+                                ${t.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </td>
+                            </tr>
+                            ))}
+                        </tbody>
+                        </table>
+                    </div>
                   </div>
                 </div>
               )}
 
               {activeTab === 'assistant' && (
-                <div className="max-w-4xl mx-auto h-[78vh] flex flex-col bg-white rounded-3xl card-shadow border-2 border-[#dcd0b9] overflow-hidden">
-                   <div className="p-10 bg-[#062c1a] text-white font-black serif text-xl italic border-b-2 border-[#dcd0b9] shadow-md">The Teller's Desk</div>
-                   <div className="flex-grow overflow-y-auto p-12 space-y-10 custom-scrollbar bg-[#fdfaf3]/50">
+                <div className="max-w-4xl mx-auto h-[70vh] md:h-[78vh] flex flex-col bg-white rounded-3xl card-shadow border-2 border-[#dcd0b9] overflow-hidden">
+                   <div className="p-6 md:p-10 bg-[#062c1a] text-white font-black serif text-xl italic border-b-2 border-[#dcd0b9] shadow-md flex justify-between items-center">
+                        <span>The Teller's Desk</span>
+                        <i className="fas fa-feather-pointed text-amber-500/50"></i>
+                   </div>
+                   <div className="flex-grow overflow-y-auto p-6 md:p-12 space-y-6 md:space-y-10 custom-scrollbar bg-[#fdfaf3]/50">
                       {chatHistory.map((msg, i) => (
                         <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                           <div className={`max-w-[75%] p-8 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-[#2d1810] text-white font-bold shadow-xl' : 'bg-white border-2 border-[#dcd0b9] shadow-sm'}`}>
+                           <div className={`max-w-[85%] md:max-w-[75%] p-5 md:p-8 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-[#2d1810] text-white font-bold shadow-xl' : 'bg-white border-2 border-[#dcd0b9] shadow-sm'}`}>
                               {msg.content}
                            </div>
                         </div>
                       ))}
                       {isChatLoading && (
-                        <div className="flex justify-start"><div className="bg-white p-8 rounded-2xl border-2 border-[#dcd0b9] shadow-sm animate-pulse">Consulting files...</div></div>
+                        <div className="flex justify-start">
+                           <div className="bg-white p-6 rounded-2xl border-2 border-[#dcd0b9] shadow-sm flex items-center gap-3">
+                              <div className="flex gap-1">
+                                <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce delay-75"></div>
+                                <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce delay-150"></div>
+                              </div>
+                              <span className="text-[10px] font-black uppercase tracking-widest text-[#8c7851]">Reconciling...</span>
+                           </div>
+                        </div>
                       )}
                       <div ref={chatEndRef} />
                    </div>
-                   <form onSubmit={handleChat} className="p-10 bg-white border-t-2 border-[#dcd0b9]">
-                      <div className="relative">
-                        <input type="text" placeholder="Speak to the teller..." className="w-full bg-[#fdfaf3] border-2 border-[#dcd0b9] rounded-xl py-6 pl-10 pr-40 text-sm font-bold focus:border-[#c5a059] outline-none" value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
-                        <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 brass-button text-white px-10 py-4 rounded-lg text-[10px] font-black uppercase tracking-widest">Inquire</button>
+                   <form onSubmit={handleChat} className="p-6 md:p-10 bg-white border-t-2 border-[#dcd0b9]">
+                      <div className="relative group">
+                        <input type="text" placeholder="Inquire..." className="w-full bg-[#fdfaf3] border-2 border-[#dcd0b9] rounded-xl py-4 md:py-6 pl-6 md:pl-10 pr-32 md:pr-40 text-sm font-bold focus:border-[#c5a059] outline-none transition-all shadow-inner" value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
+                        <button type="submit" className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 brass-button text-white px-6 md:px-10 py-3 md:py-4 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-xl">Inquire</button>
                       </div>
                    </form>
+                </div>
+              )}
+
+              {activeTab === 'about' && (
+                <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 py-8">
+                    <section className="bg-white p-8 md:p-12 rounded-3xl card-shadow border border-[#dcd0b9] space-y-6 md:space-y-8 animate-in">
+                        <h3 className="text-3xl md:text-4xl font-black serif italic text-[#062c1a]">The Origin</h3>
+                        <div className="w-20 h-1 bg-[#c5a059]"></div>
+                        <p className="text-lg text-slate-700 leading-relaxed font-medium">"Teller was built to turn cold records into a narrative, and to do so with complete, uncompromised privacy."</p>
+                        <p className="text-slate-600 leading-relaxed">Financial data is the most intimate record of our lives. Teller ensures this record stays yours. Your data never touches a server; it lives solely in your browser's local memory, accessible even when you're off the grid.</p>
+                    </section>
+
+                    <section className="bg-[#2d1810] p-8 md:p-12 rounded-3xl shadow-2xl text-white space-y-6 md:space-y-8">
+                        <h3 className="text-2xl font-black serif italic text-[#c5a059]">The Privacy Manifesto</h3>
+                        <ul className="space-y-6">
+                            <li className="flex gap-4">
+                                <div className="w-8 h-8 rounded-full bg-emerald-900 flex items-center justify-center shrink-0 border border-emerald-700"><i className="fas fa-shield-halved text-xs text-amber-100"></i></div>
+                                <div>
+                                    <p className="font-bold text-amber-100 uppercase tracking-widest text-[11px] mb-1">True Offline Freedom</p>
+                                    <p className="text-sm opacity-70">Your files are parsed locally. No cloud, no risk. Download a backup to keep your records portable.</p>
+                                </div>
+                            </li>
+                            <li className="flex gap-4">
+                                <div className="w-8 h-8 rounded-full bg-emerald-900 flex items-center justify-center shrink-0 border border-emerald-700"><i className="fas fa-broom text-xs text-amber-100"></i></div>
+                                <div>
+                                    <p className="font-bold text-amber-100 uppercase tracking-widest text-[11px] mb-1">Privacy-First AI</p>
+                                    <p className="text-sm opacity-70">Identifiable details are stripped before categorization, ensuring merchant intent is all the model ever sees.</p>
+                                </div>
+                            </li>
+                        </ul>
+                    </section>
                 </div>
               )}
             </div>
           )}
         </div>
       </main>
+
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         .animate-in { animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .serif { font-family: 'Fraunces', serif; }
+        .hero-gradient { background: radial-gradient(circle at top right, #f4eee1 0%, #fdfaf3 100%); }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #dcd0b9; border-radius: 10px; }
+        .snap-x { scroll-snap-type: x mandatory; scroll-behavior: smooth; }
+        .snap-center { scroll-snap-align: center; }
       `}</style>
     </div>
   );
