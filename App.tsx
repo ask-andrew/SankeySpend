@@ -8,7 +8,7 @@ import SankeyChart from './components/SankeyChart';
 import SmartCategorizationSuggestions from './components/SmartCategorizationSuggestions';
 import Papa from 'papaparse';
 import { 
-  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip
 } from 'recharts';
 import HabitTaxCalculator from './components/insights/HabitTaxCalculator';
 import ParetoAnalysis from './components/insights/ParetoAnalysis';
@@ -713,12 +713,51 @@ const App: React.FC = () => {
                                 </div>
                               </div>
                           </h4>
-                          <div className="h-64">
+                          <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={fingerprintData}>
-                                <PolarGrid stroke="#dcd0b9" />
-                                <PolarAngleAxis dataKey="subject" tick={{ fill: '#8c7851', fontSize: 10, fontWeight: 800 }} />
-                                <Radar name="Fingerprint" dataKey="A" stroke="#062c1a" fill="#062c1a" fillOpacity={0.4} />
+                              <RadarChart cx="50%" cy="50%" outerRadius="85%" data={fingerprintData}>
+                                <PolarGrid 
+                                  stroke="#e5e7eb" 
+                                  strokeWidth={1}
+                                  radialLines={true}
+                                />
+                                <PolarAngleAxis 
+                                  dataKey="subject" 
+                                  tick={{ 
+                                    fill: '#374151', 
+                                    fontSize: 11, 
+                                    fontWeight: 600,
+                                    className: "uppercase tracking-wide"
+                                  }} 
+                                  axisLine={false}
+                                />
+                                <PolarRadiusAxis 
+                                  angle={90} 
+                                  domain={[0, 100]} 
+                                  tick={{ 
+                                    fill: '#9ca3af', 
+                                    fontSize: 9,
+                                    fontWeight: 500
+                                  }}
+                                  axisLine={false}
+                                />
+                                <Radar 
+                                  name="Fingerprint" 
+                                  dataKey="A" 
+                                  stroke="#1e40af" 
+                                  fill="#3b82f6" 
+                                  fillOpacity={0.6}
+                                  strokeWidth={2}
+                                  dot={{ r: 4, fill: "#1e40af" }}
+                                />
+                                <Tooltip 
+                                  contentStyle={{ 
+                                    backgroundColor: '#1f2937', 
+                                    border: '1px solid #374151',
+                                    borderRadius: '8px',
+                                    color: '#f3f4f6'
+                                  }}
+                                />
                               </RadarChart>
                             </ResponsiveContainer>
                           </div>
