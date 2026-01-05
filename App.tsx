@@ -527,36 +527,59 @@ const App: React.FC = () => {
       </div>
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed lg:relative inset-y-0 left-0 w-80 bg-[#062c1a] text-white flex flex-col p-8 md:p-10 border-r-4 border-[#2d1810] shrink-0 z-40 transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="mb-12 md:mb-16 hidden lg:block">
+      <aside className={`fixed lg:relative inset-y-0 left-0 w-80 bg-[#062c1a] text-white flex flex-col p-8 md:p-10 border-r-4 border-[#2d1810] shrink-0 z-40 transition-all duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 ${!isSidebarOpen ? 'lg:w-20' : ''}`}>
+        {/* Toggle Button */}
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="absolute top-4 right-4 lg:hidden bg-[#c5a059] hover:bg-[#dcd0b9] text-[#062c1a] p-2 rounded-lg transition-colors z-50"
+        >
+          <i className={`fas ${isSidebarOpen ? 'fa-times' : 'fa-bars'} text-lg`}></i>
+        </button>
+        
+        {/* Desktop Toggle Button */}
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="hidden lg:flex absolute top-4 right-4 bg-[#c5a059] hover:bg-[#dcd0b9] text-[#062c1a] p-2 rounded-lg transition-all duration-300 hover:rotate-180"
+        >
+          <i className="fas fa-chevron-left text-sm"></i>
+        </button>
+        
+        <div className={`mb-12 md:mb-16 ${!isSidebarOpen ? 'lg:hidden' : ''}`}>
           <Logo size="md" isLight={true} />
         </div>
         <nav className="flex-grow space-y-2 md:space-y-3">
-          <button onClick={() => {setActiveTab('home'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'home' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
-            <i className="fas fa-landmark w-5"></i> Spending View
+          <button onClick={() => {setActiveTab('home'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'home' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'} ${!isSidebarOpen ? 'lg:justify-center lg:px-4' : ''}`}>
+            <i className="fas fa-landmark w-5"></i>
+            <span className={`${!isSidebarOpen ? 'lg:hidden' : ''}`}>Spending View</span>
           </button>
-          <button onClick={() => {setActiveTab('budgets'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'budgets' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
-            <i className="fas fa-vault w-5"></i> Budget Office
+          <button onClick={() => {setActiveTab('budgets'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'budgets' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'} ${!isSidebarOpen ? 'lg:justify-center lg:px-4' : ''}`}>
+            <i className="fas fa-vault w-5"></i>
+            <span className={`${!isSidebarOpen ? 'lg:hidden' : ''}`}>Budget Office</span>
           </button>
-          <button onClick={() => {setActiveTab('insights'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'insights' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
-            <i className="fas fa-brain w-5"></i> Money Insights
+          <button onClick={() => {setActiveTab('insights'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'insights' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'} ${!isSidebarOpen ? 'lg:justify-center lg:px-4' : ''}`}>
+            <i className="fas fa-chart-line w-5"></i>
+            <span className={`${!isSidebarOpen ? 'lg:hidden' : ''}`}>Insights</span>
           </button>
-          <button onClick={() => {setActiveTab('history'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'history' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
-            <i className="fas fa-scroll w-5"></i> Activity Record
+          <button onClick={() => {setActiveTab('history'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'history' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'} ${!isSidebarOpen ? 'lg:justify-center lg:px-4' : ''}`}>
+            <i className="fas fa-clock-rotate-left w-5"></i>
+            <span className={`${!isSidebarOpen ? 'lg:hidden' : ''}`}>History</span>
           </button>
-          <button onClick={() => {setActiveTab('assistant'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'assistant' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
-            <i className="fas fa-user-tie w-5"></i> Consult the Teller
+          <button onClick={() => {setActiveTab('assistant'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'assistant' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'} ${!isSidebarOpen ? 'lg:justify-center lg:px-4' : ''}`}>
+            <i className="fas fa-feather-pointed w-5"></i>
+            <span className={`${!isSidebarOpen ? 'lg:hidden' : ''}`}>The Teller</span>
           </button>
-          <button onClick={() => {setActiveTab('about'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'about' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}>
-            <i className="fas fa-circle-question w-5"></i> About & Privacy
+          <button onClick={() => {setActiveTab('about'); setIsSidebarOpen(false)}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-lg text-sm font-bold transition-all ${activeTab === 'about' ? 'bg-[#c5a059] text-[#062c1a] shadow-inner' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'} ${!isSidebarOpen ? 'lg:justify-center lg:px-4' : ''}`}>
+            <i className="fas fa-circle-question w-5"></i>
+            <span className={`${!isSidebarOpen ? 'lg:hidden' : ''}`}>About & Privacy</span>
           </button>
         </nav>
-        <div className="mt-auto pt-8 border-t border-emerald-900/40 space-y-4">
+        <div className={`mt-auto pt-8 border-t border-emerald-900/40 space-y-4 ${!isSidebarOpen ? 'lg:hidden' : ''}`}>
            <button onClick={handleExportData} className="w-full text-[10px] text-emerald-100/50 hover:text-[#c5a059] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-             <i className="fas fa-download"></i> Download Vault Backup
+             <i className="fas fa-download"></i>
+             <span className={`${!isSidebarOpen ? 'lg:hidden' : ''}`}>Download</span>
            </button>
-           <div className="flex items-center justify-between gap-2">
-             <span className="text-[10px] text-emerald-100/50 font-black uppercase tracking-widest">AI Features</span>
+           <div className={`flex items-center justify-between gap-2 ${!isSidebarOpen ? 'lg:hidden' : ''}`}>
+             <span className="text-[10px] text-emerald-100/50 font-black uppercase tracking-widest">AI</span>
              <button
                onClick={() => setAiEnabled(!aiEnabled)}
                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${aiEnabled ? 'bg-[#c5a059]' : 'bg-emerald-900/40'}`}
@@ -564,9 +587,10 @@ const App: React.FC = () => {
                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${aiEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
              </button>
            </div>
-           <p className="text-[10px] text-emerald-100/20 uppercase tracking-[0.2em] font-black text-center italic">"What is your money telling you?"</p>
+           <p className={`text-[10px] text-emerald-100/20 uppercase tracking-[0.2em] font-black text-center italic ${!isSidebarOpen ? 'lg:hidden' : ''}`}>What is your money telling you?</p>
            <button onClick={() => { if(confirm("Clear local data?")) { localStorage.clear(); window.location.reload(); } }} className="w-full text-[10px] text-emerald-900/60 hover:text-orange-300 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-             <i className="fas fa-broom"></i> Re-lock Vault
+             <i className="fas fa-broom"></i>
+             <span className={`${!isSidebarOpen ? 'lg:hidden' : ''}`}>Re-lock</span>
            </button>
         </div>
       </aside>
@@ -575,6 +599,12 @@ const App: React.FC = () => {
       <main className="flex-grow flex flex-col overflow-hidden bg-[#fdfaf3]">
         <header className="hidden lg:flex h-24 bg-[#fdfaf3] border-b-2 border-[#dcd0b9] items-center justify-between px-12 z-10 shadow-sm shrink-0">
            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2 rounded-lg border-2 border-[#dcd0b9] hover:bg-[#062c1a] hover:text-white transition-all duration-300"
+              >
+                <i className={`fas ${isSidebarOpen ? 'fa-chevron-left' : 'fa-chevron-right'} text-[#8c7851]`}></i>
+              </button>
               <Logo size="sm" showTagline={false} />
               <div className="h-6 w-[2px] bg-[#dcd0b9] mx-2"></div>
               <h2 className="text-xl font-black text-[#062c1a] serif tracking-tight">Financial Ledger</h2>
