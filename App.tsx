@@ -660,10 +660,18 @@ const App: React.FC = () => {
              </button>
            </div>
            <p className={`text-[10px] text-emerald-100/20 uppercase tracking-[0.2em] font-black text-center italic ${!isSidebarOpen ? 'lg:hidden' : ''}`}>What is your money telling you?</p>
-           <button onClick={() => { if(confirm("Clear local data?")) { localStorage.clear(); window.location.reload(); } }} className="w-full text-[10px] text-emerald-900/60 hover:text-orange-300 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-             <i className="fas fa-broom"></i>
-             <span className={`${!isSidebarOpen ? 'lg:hidden' : ''}`}>Re-lock</span>
-           </button>
+           <button 
+            onClick={() => { 
+              if(confirm("⚠️ Clear ALL local data? This will permanently delete:\n\n• All transactions\n• All budgets\n• All settings\n• All learned categorizations\n\nThis action cannot be undone!")) { 
+                localStorage.clear(); 
+                window.location.reload(); 
+              } 
+            }} 
+            className="w-full bg-red-900 hover:bg-red-800 text-white font-black uppercase tracking-widest flex items-center justify-center gap-3 p-4 rounded-lg border-2 border-red-700 transition-all transform hover:scale-105 shadow-lg"
+          >
+            <i className="fas fa-exclamation-triangle text-lg"></i>
+            <span className={`text-sm md:text-base ${!isSidebarOpen ? 'lg:hidden' : ''}`}>Clear All Data</span>
+          </button>
         </div>
       </aside>
 

@@ -1,3 +1,5 @@
+import { guessCategoryFromDescription } from '../utils/categorizationUtils';
+
 interface CategoryPattern {
   pattern: string;
   category: string;
@@ -126,13 +128,13 @@ class CategorizationLearner {
       }
     }
 
-    // Then check description patterns
+    // Then check description patterns from learned memory
     const desc = description.toLowerCase();
     const words = desc.split(/\s+/).filter(word => word.length > 2);
     
     let bestMatch: { category: string; confidence: number } | null = null;
     
-    // Check all patterns against the description
+    // Check all learned patterns against the description
     this.memory.patterns.forEach(pattern => {
       if (desc.includes(pattern.pattern)) {
         if (!bestMatch || pattern.confidence > bestMatch.confidence) {
@@ -143,6 +145,14 @@ class CategorizationLearner {
         }
       }
     });
+
+    // If no learned pattern found, use the enhanced keyword-based categorization
+    if (!bestMatch) {
+      const fallbackCategory = guessCategoryFromDescription(description);
+      if (fallbackCategory) {
+        return { category: fallbackCategory, confidence: 0.4 }; // Lower confidence for fallback
+      }
+    }
 
     return bestMatch;
   }

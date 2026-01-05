@@ -17,12 +17,15 @@ export const guessCategoryFromDescription = (description: string): string | unde
   if (/restaurant|dinner|lunch|breakfast|food|takeout|delivery|doordash|ubereats|grubhub/.test(d)) return 'Food & Drink';
   if (/mcdonald|burger king|wendy|taco bell|kfc|subway|chipotle/.test(d)) return 'Food & Drink';
   
-  // Bills & Utilities
-  if (/netflix|spotify|hulu|disney|max|amazon prime|apple tv|youtube tv/.test(d)) return 'Bills & Utilities';
-  if (/electric|gas bill|water|sewer|trash|recycling|utilities/.test(d)) return 'Bills & Utilities';
-  if (/internet|wifi|comcast|verizon|att|spectrum|cox/.test(d)) return 'Bills & Utilities';
-  if (/phone|mobile|cellular|verizon|att|t-mobile|sprint/.test(d)) return 'Bills & Utilities';
-  if (/insurance|health ins|car ins|life ins/.test(d)) return 'Bills & Utilities';
+  // Bills & Utilities - Enhanced with more utility keywords
+  if (/netflix|spotify|hulu|disney|max|amazon prime|apple tv|youtube tv|paramount\+|peacock/.test(d)) return 'Bills & Utilities';
+  if (/electric|gas bill|water|sewer|trash|recycling|utilities|utility/.test(d)) return 'Bills & Utilities';
+  if (/internet|wifi|comcast|verizon|att|spectrum|cox|charter|optimum|fios/.test(d)) return 'Bills & Utilities';
+  if (/phone|mobile|cellular|verizon|att|t-mobile|sprint|mint|cricket|boost/.test(d)) return 'Bills & Utilities';
+  if (/insurance|health ins|car ins|life ins|home ins|renters ins/.test(d)) return 'Bills & Utilities';
+  if (/subscription|recurring|monthly|annual|membership/.test(d)) return 'Bills & Utilities';
+  if (/electricity|power|energy|heating|cooling|hvac|propane|oil delivery/.test(d)) return 'Bills & Utilities';
+  if (/cable|satellite|streaming|entertainment/.test(d)) return 'Bills & Utilities';
   
   // Wellness & Health
   if (/gym|fitness|yoga|crossfit|planet fitness|la fitness|24 hour/.test(d)) return 'Wellness & Health';
@@ -59,9 +62,45 @@ export const guessCategoryFromDescription = (description: string): string | unde
   if (/salary|payroll|paycheck|wages|income|commission|bonus/.test(d)) return 'Income';
   if (/office supplies|business expense|work|job|career/.test(d)) return 'Work';
   
-  // Account Transfer
-  if (/transfer|payment to|cc payment|credit card payment|ach|direct deposit/.test(d)) return 'Account Transfer';
-  if (/venmo|paypal|cash app|zelle|square/.test(d)) return 'Account Transfer';
+  // Account Transfer - Enhanced with more transfer patterns
+  if (/transfer|payment to|cc payment|credit card payment|ach|direct deposit|wire transfer/.test(d)) return 'Account Transfer';
+  if (/venmo|paypal|cash app|zelle|square|apple pay|google pay|samsung pay/.test(d)) return 'Account Transfer';
+  if (/xfer|trx|trnsf|p2p|person to person/.test(d)) return 'Account Transfer';
+  if (/internal transfer|account to account|savings to checking|checking to savings/.test(d)) return 'Account Transfer';
+  if (/(?:^|\b)payment from|deposit from|received from|incoming/.test(d)) return 'Account Transfer';
+  if (/(?:^|\b)sent|paid|outgoing|withdrawal|debit/.test(d)) return 'Account Transfer';
   
   return undefined;
+};
+
+// New function for bulk keyword matching
+export const getTransactionsByKeyword = (transactions: any[], keyword: string): any[] => {
+  const lowerKeyword = keyword.toLowerCase();
+  return transactions.filter(transaction => {
+    const description = (transaction.description || '').toLowerCase();
+    const merchantName = (transaction.merchantName || '').toLowerCase();
+    return description.includes(lowerKeyword) || merchantName.includes(lowerKeyword);
+  });
+};
+
+// New function for smart bulk categorization by keyword
+export const suggestBulkCategoryByKeyword = (keyword: string): string | undefined => {
+  return guessCategoryFromDescription(keyword);
+};
+
+// New function to get common utility keywords
+export const getUtilityKeywords = (): string[] => {
+  return [
+    'electric', 'gas', 'water', 'sewer', 'trash', 'recycling', 'internet', 'wifi',
+    'phone', 'mobile', 'cellular', 'netflix', 'spotify', 'hulu', 'disney', 'max',
+    'subscription', 'recurring', 'insurance', 'utilities', 'cable', 'streaming'
+  ];
+};
+
+// New function to get transfer keywords
+export const getTransferKeywords = (): string[] => {
+  return [
+    'transfer', 'venmo', 'paypal', 'cash app', 'zelle', 'square', 'payment',
+    'ach', 'direct deposit', 'wire', 'xfer', 'p2p', 'internal', 'account to'
+  ];
 };
