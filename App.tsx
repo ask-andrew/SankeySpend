@@ -539,7 +539,7 @@ const App: React.FC = () => {
         {/* Desktop Toggle Button */}
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="hidden lg:flex absolute top-4 right-4 bg-[#c5a059] hover:bg-[#dcd0b9] text-[#062c1a] p-2 rounded-lg transition-all duration-300 hover:rotate-180"
+          className={`hidden lg:flex absolute top-4 right-4 bg-[#c5a059] hover:bg-[#dcd0b9] text-[#062c1a] p-2 rounded-lg transition-all duration-300 hover:rotate-180 ${isSidebarOpen ? '' : 'lg:hidden'}`}
         >
           <i className="fas fa-chevron-left text-sm"></i>
         </button>
