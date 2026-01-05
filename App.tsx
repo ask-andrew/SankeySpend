@@ -273,12 +273,16 @@ const App: React.FC = () => {
             const tx1 = txs[i];
             const tx2 = txs[i + 1];
 
-            // Check if they are income/expense pair of same amount, close in date, different sources
+            // Check if they are income/expense pair of same amount, close in date, and have transfer-like keywords
+            const desc1 = (tx1.description || tx1.merchantName || '').toLowerCase();
+            const desc2 = (tx2.description || tx2.merchantName || '').toLowerCase();
+            const hasTransferKeywords = desc1.includes('transfer') || desc1.includes('payment') || desc1.includes('move') ||
+                                     desc2.includes('transfer') || desc2.includes('payment') || desc2.includes('move');
+            
             if (tx1.isIncome !== tx2.isIncome &&
                 Math.abs(tx1.amount) === Math.abs(tx2.amount) &&
-                Math.abs(new Date(tx1.date).getTime() - new Date(tx2.date).getTime()) < (1000 * 60 * 60 * 24 * 7) // within 7 days
-                // Add more sophisticated source/account matching if needed, e.g., tx1.source !== tx2.source
-              ) {
+                Math.abs(new Date(tx1.date).getTime() - new Date(tx2.date).getTime()) < (1000 * 60 * 60 * 24 * 3) && // within 3 days
+                hasTransferKeywords) {
               // Mark both as internal transfers
               tx1.category = 'Account Transfer';
               tx1.isInternalTransfer = true;
@@ -375,7 +379,7 @@ const App: React.FC = () => {
     const currentM = getMonthKey(now.toISOString());
     const monthlyData: Record<string, number> = {};
     transactions.forEach(t => {
-      if (getMonthKey(t.date) === currentM && !t.isIncome && t.category !== 'Account Transfer') {
+      if (getMonthKey(t.date) === currentM && !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer) {
         monthlyData[t.category] = (monthlyData[t.category] || 0) + t.amount;
       }
     });
@@ -393,7 +397,7 @@ const App: React.FC = () => {
 
   const fingerprintData = useMemo(() => {
     if (transactions.length === 0) return [];
-    const txs = transactions.filter(t => !t.isIncome && t.category !== 'Account Transfer');
+    const txs = transactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer);
     const smallTxCount = txs.filter(t => t.amount < 25).length;
     const impulsivity = (smallTxCount / (txs.length || 1)) * 100;
     const weekendSpend = txs.filter(t => [0, 6].includes(new Date(t.date).getDay())).reduce((s, t) => s + t.amount, 0);
@@ -415,7 +419,7 @@ const App: React.FC = () => {
     const nodesList: { name: string; id: string }[] = [{ name: "Flow Center", id: "source" }];
     const links: { source: number; target: number; value: number }[] = [];
     const categoryAggregates = new Map<string, number>();
-    filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer').forEach(t => {
+    filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer).forEach(t => {
       categoryAggregates.set(t.category, (categoryAggregates.get(t.category) || 0) + t.amount);
     });
     categoryAggregates.forEach((amount, catName) => {
@@ -428,7 +432,7 @@ const App: React.FC = () => {
 
   const barData = useMemo(() => {
     const categoryTotals = new Map<string, number>();
-    filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer').forEach(t => {
+    filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer).forEach(t => {
       categoryTotals.set(t.category, (categoryTotals.get(t.category) || 0) + t.amount);
     });
     return Array.from(categoryTotals.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);

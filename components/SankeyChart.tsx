@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { sankey as d3Sankey, sankeyLinkHorizontal } from 'd3-sankey';
 import { SankeyData } from '../types';
@@ -14,6 +14,26 @@ interface Props {
 
 const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeClick }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const [containerWidth, setContainerWidth] = useState(width);
+
+  // Update container width on resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (svgRef.current?.parentElement) {
+        const parent = svgRef.current.parentElement as HTMLElement;
+        const newWidth = Math.min(parent.clientWidth - 40, 1200); // Max 1200px with padding
+        setContainerWidth(newWidth);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Calculate responsive dimensions
+  const responsiveHeight = Math.min(500, Math.max(300, containerWidth * 0.6));
+  const effectiveWidth = containerWidth;
 
   useEffect(() => {
     if (!svgRef.current || !data.nodes.length) return;
@@ -22,8 +42,8 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
     svg.selectAll("*").remove();
 
     const margin = { top: 20, right: 180, bottom: 20, left: 180 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
+    const innerWidth = effectiveWidth - margin.left - margin.right;
+    const innerHeight = responsiveHeight - margin.top - margin.bottom;
 
     const sankey = (d3Sankey() as any)
       .nodeWidth(15)
@@ -97,11 +117,11 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
       .style("font-weight", "600")
       .text((d: any) => d.value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
 
-  }, [data, width, height, onNodeClick]);
+  }, [data, effectiveWidth, responsiveHeight, onNodeClick]);
 
   return (
     <div className="overflow-x-visible">
-      <svg ref={svgRef} width={width} height={height} className="mx-auto" />
+      <svg ref={svgRef} width={effectiveWidth} height={responsiveHeight} className="mx-auto" />
     </div>
   );
 };
