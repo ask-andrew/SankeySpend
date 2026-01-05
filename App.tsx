@@ -360,8 +360,8 @@ const App: React.FC = () => {
   }, [categoriesAvailable]);
 
   const totals = useMemo(() => {
-    const realSpend = filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer').reduce((s, t) => s + t.amount, 0);
-    const moneyIn = filteredTransactions.filter(t => t.isIncome && t.category !== 'Account Transfer').reduce((s, t) => s + t.amount, 0);
+    const realSpend = filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer).reduce((s, t) => s + t.amount, 0);
+    const moneyIn = filteredTransactions.filter(t => t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer).reduce((s, t) => s + t.amount, 0);
     return { realSpend, moneyIn, net: moneyIn - realSpend };
   }, [filteredTransactions]);
 
@@ -659,8 +659,10 @@ const App: React.FC = () => {
                                ))}
                             </div>
                          </div>
-                         <div className="overflow-x-auto min-h-[300px] lg:min-h-[400px]">
-                            <SankeyChart data={sankeyData} height={400} onNodeClick={(name) => { setSelectedCategory(name); setActiveTab('history'); }} />
+                         <div className="w-full overflow-x-auto overflow-y-visible min-h-[400px] lg:min-h-[500px]">
+                            <div className="min-w-[600px]">
+                               <SankeyChart data={sankeyData} height={500} onNodeClick={(name) => { setSelectedCategory(name); setActiveTab('history'); }} />
+                            </div>
                          </div>
                       </div>
                     </div>

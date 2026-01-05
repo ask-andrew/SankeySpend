@@ -21,7 +21,9 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
     const handleResize = () => {
       if (svgRef.current?.parentElement) {
         const parent = svgRef.current.parentElement as HTMLElement;
-        const newWidth = Math.min(parent.clientWidth - 40, 1200); // Max 1200px with padding
+        const containerWidth = parent.clientWidth;
+        // Use full available width with reasonable constraints
+        const newWidth = Math.max(600, Math.min(containerWidth - 20, 1400)); // Min 600px, max 1400px
         setContainerWidth(newWidth);
       }
     };
@@ -32,7 +34,7 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
   }, []);
 
   // Calculate responsive dimensions
-  const responsiveHeight = Math.min(500, Math.max(300, containerWidth * 0.6));
+  const responsiveHeight = Math.max(400, Math.min(600, containerWidth * 0.5)); // Min 400px, max 600px
   const effectiveWidth = containerWidth;
 
   useEffect(() => {
