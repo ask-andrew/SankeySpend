@@ -43,7 +43,7 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
-    const margin = { top: 20, right: 180, bottom: 20, left: 180 };
+    const margin = { top: 20, right: 200, bottom: 20, left: 200 };
     const innerWidth = effectiveWidth - margin.left - margin.right;
     const innerHeight = responsiveHeight - margin.top - margin.bottom;
 
@@ -60,10 +60,14 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
     const g = svg.append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Use our global "Vintage Banking" color palette
+    // Use our global "Vintage Banking" color palette with special handling for "Other"
     const colorScale = d3.scaleOrdinal<string>()
       .domain(data.nodes.map(n => n.name))
-      .range(COLORS);
+      .range(data.nodes.map((n, i) => {
+        if (n.name === "Other") return "#6b7280"; // Gray for "Other"
+        if (n.name === "Flow Center") return "#1e40af"; // Blue for center
+        return COLORS[i % COLORS.length]; // Cycle through colors
+      }));
 
     const link = g.append("g")
       .attr("fill", "none")

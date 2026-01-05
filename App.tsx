@@ -435,11 +435,33 @@ const App: React.FC = () => {
     filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer).forEach(t => {
       categoryAggregates.set(t.category, (categoryAggregates.get(t.category) || 0) + t.amount);
     });
-    categoryAggregates.forEach((amount, catName) => {
+
+    // Sort categories by amount (most to least) and group small ones
+    const sortedCategories = Array.from(categoryAggregates.entries())
+      .sort((a, b) => b[1] - a[1]); // Sort by amount descending
+    
+    // Group small categories (less than 5% of total or less than $100)
+    const totalAmount = sortedCategories.reduce((sum, [_, amount]) => sum + amount, 0);
+    const threshold = Math.max(totalAmount * 0.05, 100); // 5% of total or $100, whichever is larger
+    
+    const majorCategories = sortedCategories.filter(([_, amount]) => amount >= threshold);
+    const minorCategories = sortedCategories.filter(([_, amount]) => amount < threshold);
+    
+    // Add major categories individually
+    majorCategories.forEach(([catName, amount]) => {
       const nodeIndex = nodesList.length;
       nodesList.push({ name: catName, id: catName });
       links.push({ source: 0, target: nodeIndex, value: amount });
     });
+    
+    // Group minor categories into "Other"
+    if (minorCategories.length > 0) {
+      const otherTotal = minorCategories.reduce((sum, [_, amount]) => sum + amount, 0);
+      const nodeIndex = nodesList.length;
+      nodesList.push({ name: "Other", id: "other" });
+      links.push({ source: 0, target: nodeIndex, value: otherTotal });
+    }
+    
     return { nodes: nodesList, links };
   }, [filteredTransactions]);
 
@@ -672,7 +694,7 @@ const App: React.FC = () => {
                                ))}
                             </div>
                          </div>
-                         <div className="w-full overflow-x-auto overflow-y-visible min-h-[500px] lg:min-h-[600px]">
+                         <div className="w-full flex justify-center items-center overflow-x-auto overflow-y-visible min-h-[500px] lg:min-h-[600px]">
                             <div className="min-w-[800px]">
                                <SankeyChart data={sankeyData} height={600} onNodeClick={(name) => { setSelectedCategory(name); setActiveTab('history'); }} />
                             </div>
