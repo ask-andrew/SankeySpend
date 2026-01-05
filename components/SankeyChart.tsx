@@ -43,13 +43,13 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
-    const margin = { top: 20, right: 200, bottom: 20, left: 200 };
+    const margin = { top: 20, right: 120, bottom: 20, left: 120 };
     const innerWidth = effectiveWidth - margin.left - margin.right;
     const innerHeight = responsiveHeight - margin.top - margin.bottom;
 
     const sankey = (d3Sankey() as any)
-      .nodeWidth(20) // Increased node width for better visibility
-      .nodePadding(40) // Increased padding for cleaner separation
+      .nodeWidth(12) // Reduced node width for cleaner look
+      .nodePadding(25) // Reduced padding for more compact layout
       .extent([[1, 1], [innerWidth - 1, innerHeight - 1]]);
 
     const { nodes, links } = sankey({
@@ -81,7 +81,7 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
       .attr("d", sankeyLinkHorizontal())
       // Use vibrant colors from target category node
       .attr("stroke", (d: any) => colorScale(d.target.name))
-      .attr("stroke-width", (d: any) => Math.max(2, d.width)) // Minimum width of 2 for visibility
+      .attr("stroke-width", (d: any) => Math.max(1, d.width * 0.7)) // Thinner links with scaling
       .attr("stroke-linejoin", "round") // Smoother joins
       .attr("stroke-linecap", "round"); // Rounded ends
 
@@ -109,21 +109,22 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
       .attr("rx", 3) // Slightly rounded corners
 
     node.append("text")
-      .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 12 : d.x0 - 12)
+      .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 8 : d.x0 - 8)
       .attr("y", (d: any) => (d.y1 + d.y0) / 2)
       .attr("dy", "0.35em")
       .attr("text-anchor", (d: any) => d.x0 < innerWidth / 2 ? "start" : "end")
       .attr("fill", "#1f2937") // Darker text for better contrast
-      .style("font-weight", "800")
-      .style("font-size", "11px") // Slightly larger text
+      .style("font-weight", "700")
+      .style("font-size", "10px") // Smaller text for cleaner look
       .style("text-transform", "uppercase")
       .style("letter-spacing", "0.05em")
       .text((d: any) => d.name)
       .append("tspan")
       .attr("fill", "#6b7280") // Softer color for amounts
-      .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 12 : d.x0 - 12)
-      .attr("dy", "1.3em")
-      .style("font-weight", "600")
+      .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 8 : d.x0 - 8)
+      .attr("dy", "1.2em")
+      .style("font-weight", "500")
+      .style("font-size", "9px") // Even smaller for amounts
       .text((d: any) => d.value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
 
   }, [data, effectiveWidth, responsiveHeight, onNodeClick]);

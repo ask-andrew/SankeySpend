@@ -104,23 +104,60 @@ export const getSpendingInsights = async (transactions: Transaction[]): Promise<
 
 export const suggestBudgets = async (transactions: Transaction[]): Promise<BudgetSuggestion[]> => {
   try {
-    const realSpend = transactions.filter(t => t.category !== 'Account Transfer' && !t.isIncome);
-    const catSummary: Record<string, number> = {};
+    // Filter out income and internal transfers
+    const realSpend = transactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer);
+    
+    if (realSpend.length === 0) return [];
+    
+    // Calculate monthly spending by category
+    const categoryMonthlyTotals = new Map<string, Map<string, number>>();
+    
     realSpend.forEach(t => {
-      catSummary[t.category] = (catSummary[t.category] || 0) + t.amount;
+      const monthKey = getMonthKey(t.date);
+      if (!categoryMonthlyTotals.has(t.category)) {
+        categoryMonthlyTotals.set(t.category, new Map());
+      }
+      const monthMap = categoryMonthlyTotals.get(t.category)!;
+      monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + t.amount);
     });
-
-    const prompt = `You are a financial advisor. Review these spending categories and their total transaction history. 
-    Suggest monthly budgets for the top spending categories. 
-    Identify potential areas to trim or save.
-    Data: ${JSON.stringify(catSummary)}`;
-
-    const response = await callFunction('/api/suggest-budgets', { transactions: realSpend });
-    return response as BudgetSuggestion[];
+    
+    // Calculate averages and create suggestions
+    const suggestions: BudgetSuggestion[] = [];
+    
+    categoryMonthlyTotals.forEach((monthMap, category) => {
+      const monthlyTotals = Array.from(monthMap.values());
+      const averageMonthly = monthlyTotals.reduce((sum, total) => sum + total, 0) / monthlyTotals.length;
+      
+      // Add a small buffer (10%) to the average for suggested budget
+      const suggestedLimit = Math.round(averageMonthly * 1.1);
+      
+      suggestions.push({
+        category,
+        suggestedLimit,
+        reason: `Based on your average monthly spending of $${averageMonthly.toFixed(2)} across ${monthlyTotals.length} months`,
+        potentialSavings: Math.round(averageMonthly * 0.1) // Potential 10% savings
+      });
+    });
+    
+    // Sort by total spending amount (highest first) and limit to top categories
+    return suggestions
+      .sort((a, b) => b.suggestedLimit - a.suggestedLimit)
+      .slice(0, 8); // Top 8 categories
   } catch (e) {
     console.error("Budget suggestions error:", e);
     return [];
   }
+};
+
+// Helper function to get month key
+const getMonthKey = (date: string): string => {
+  const parsed = new Date(date);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  }
+  return date.slice(0, 7);
 };
 
 export const queryTransactions = async (query: string, transactions: Transaction[]): Promise<string> => {

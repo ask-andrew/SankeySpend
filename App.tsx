@@ -15,6 +15,7 @@ import ParetoAnalysis from './components/insights/ParetoAnalysis';
 import LifestyleInflationDetector from './components/insights/LifestyleInflationDetector';
 import CashFlowWaterfall from './components/insights/CashFlowWaterfall';
 import FinancialFingerprintInsight from './components/insights/FinancialFingerprint';
+import BillTracker from './components/insights/BillTracker';
 
 export const COLORS = [
   '#1e40af', // Deep Blue
@@ -322,6 +323,48 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportBudget = () => {
+    const budgetData = {
+      generated: new Date().toISOString(),
+      categories: spendingCategories.map(cat => ({
+        category: cat,
+        monthlyLimit: budgets[cat] || 0,
+        currentMonthSpent: currentMonthSpending[cat] || 0,
+        remaining: (budgets[cat] || 0) - (currentMonthSpending[cat] || 0),
+        utilizationRate: budgets[cat] > 0 ? ((currentMonthSpending[cat] || 0) / budgets[cat]) * 100 : 0
+      })),
+      summary: {
+        totalBudgetLimit: budgetSummary.totalLimit,
+        totalSpent: budgetSummary.totalSpent,
+        totalRemaining: budgetSummary.totalLimit - budgetSummary.totalSpent,
+        overallUtilizationRate: budgetSummary.ratio * 100
+      }
+    };
+
+    const csvContent = [
+      'Category,Monthly Limit,Current Month Spent,Remaining,Utilization Rate %',
+      ...budgetData.categories.map(item => 
+        `"${item.category}",${item.monthlyLimit},${item.currentMonthSpent},${item.remaining},${item.utilizationRate.toFixed(1)}`
+      ),
+      '',
+      'Summary',
+      `"Total Budget Limit",${budgetData.summary.totalBudgetLimit}`,
+      `"Total Spent",${budgetData.summary.totalSpent}`,
+      `"Total Remaining",${budgetData.summary.totalRemaining}`,
+      `"Overall Utilization Rate",${budgetData.summary.overallUtilizationRate.toFixed(1)}%`,
+      '',
+      `Generated on ${new Date().toLocaleDateString()}`
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `teller-budget-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const saveCategoryEdit = (txId: string) => {
     setTransactions(prev => prev.map(t => {
       if (t.id === txId) {
@@ -408,8 +451,32 @@ const App: React.FC = () => {
     return { totalLimit, totalSpent, ratio: totalLimit > 0 ? (totalSpent / totalLimit) : 0 };
   }, [spendingCategories, budgets, currentMonthSpending]);
 
+  const categoryAverages = useMemo(() => {
+    const averages = new Map<string, number>();
+    const categoryMonthlyTotals = new Map<string, Map<string, number>>();
+    
+    // Filter out income and internal transfers
+    const realSpend = transactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer);
+    
+    realSpend.forEach(t => {
+      const monthKey = getMonthKey(t.date);
+      if (!categoryMonthlyTotals.has(t.category)) {
+        categoryMonthlyTotals.set(t.category, new Map());
+      }
+      const monthMap = categoryMonthlyTotals.get(t.category)!;
+      monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + t.amount);
+    });
+    
+    categoryMonthlyTotals.forEach((monthMap, category) => {
+      const monthlyTotals = Array.from(monthMap.values());
+      const average = monthlyTotals.reduce((sum, total) => sum + total, 0) / monthlyTotals.length;
+      averages.set(category, average);
+    });
+    
+    return averages;
+  }, [transactions]);
+
   const fingerprintData = useMemo(() => {
-    if (transactions.length === 0) return [];
     const txs = transactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer);
     const smallTxCount = txs.filter(t => t.amount < 25).length;
     const impulsivity = (smallTxCount / (txs.length || 1)) * 100;
@@ -428,11 +495,15 @@ const App: React.FC = () => {
   }, [transactions, totals.realSpend]);
 
   const sankeyData = useMemo((): SankeyData => {
-    if (filteredTransactions.length === 0) return { nodes: [], links: [] };
+    // Use base transactions without filters for home page chart
+    const baseTransactions = transactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer);
+    
+    if (baseTransactions.length === 0) return { nodes: [], links: [] };
     const nodesList: { name: string; id: string }[] = [{ name: "Flow Center", id: "source" }];
     const links: { source: number; target: number; value: number }[] = [];
     const categoryAggregates = new Map<string, number>();
-    filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer).forEach(t => {
+    
+    baseTransactions.forEach(t => {
       categoryAggregates.set(t.category, (categoryAggregates.get(t.category) || 0) + t.amount);
     });
 
@@ -463,15 +534,16 @@ const App: React.FC = () => {
     }
     
     return { nodes: nodesList, links };
-  }, [filteredTransactions]);
+  }, [transactions]);
 
   const barData = useMemo(() => {
     const categoryTotals = new Map<string, number>();
-    filteredTransactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer).forEach(t => {
+    // Use base transactions without filters for consistency with Sankey chart
+    transactions.filter(t => !t.isIncome && t.category !== 'Account Transfer' && !t.isInternalTransfer).forEach(t => {
       categoryTotals.set(t.category, (categoryTotals.get(t.category) || 0) + t.amount);
     });
     return Array.from(categoryTotals.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [filteredTransactions]);
+  }, [transactions]);
 
   const handleSuggest = async () => {
     if (transactions.length === 0) return;
@@ -846,6 +918,10 @@ const App: React.FC = () => {
                   </div>
 
                   <section className="bg-white rounded-3xl card-shadow border border-[#dcd0b9] p-6 md:p-10 lg:p-12 space-y-8">
+                    <BillTracker transactions={transactions} />
+                  </section>
+
+                  <section className="bg-white rounded-3xl card-shadow border border-[#dcd0b9] p-6 md:p-10 lg:p-12 space-y-8">
                     <HabitTaxCalculator transactions={transactions} />
                   </section>
 
@@ -876,19 +952,28 @@ const App: React.FC = () => {
                             <h3 className="text-3xl md:text-5xl font-black serif italic text-[#c5a059] mb-4">The Budget Office</h3>
                             <p className="text-emerald-100/60 font-medium tracking-wide leading-relaxed">Assign monthly limits to your narrative chapters. The Teller analyzes your averages to suggest reasonable boundaries.</p>
                        </div>
-                       <button 
-                        onClick={handleSuggest}
-                        disabled={isSuggesting}
-                        className={`px-8 md:px-10 py-4 md:py-5 rounded-xl font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 border border-amber-600/30 ${isSuggesting ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' : 'brass-button text-white active:scale-95'}`}>
-                            {isSuggesting ? <i className="fas fa-spinner animate-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>}
-                            {isSuggesting ? "Analyzing..." : "Suggest Limits"}
-                       </button>
+                       <div className="flex gap-4">
+                         <button 
+                           onClick={handleExportBudget}
+                           className="px-6 md:px-8 py-3 md:py-4 rounded-xl font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 border border-emerald-600/30 bg-emerald-800 hover:bg-emerald-700 text-white">
+                             <i className="fas fa-download"></i>
+                             Export Budget
+                         </button>
+                         <button 
+                          onClick={handleSuggest}
+                          disabled={isSuggesting}
+                          className={`px-8 md:px-10 py-4 md:py-5 rounded-xl font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 border border-amber-600/30 ${isSuggesting ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' : 'brass-button text-white active:scale-95'}`}>
+                             {isSuggesting ? <i className="fas fa-spinner animate-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>}
+                             {isSuggesting ? "Analyzing..." : "Suggest Limits"}
+                         </button>
+                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                     {spendingCategories.map((cat) => {
                       const limit = budgets[cat] || 0, spent = currentMonthSpending[cat] || 0, ratio = limit > 0 ? (spent / limit) : 0;
+                      const average = categoryAverages.get(cat) || 0;
                       return (
                         <div key={cat} className="bg-white p-6 md:p-8 rounded-3xl card-shadow border border-[#dcd0b9] group hover:border-[#c5a059] transition-all">
                           <div className="flex items-center gap-4 mb-6 md:mb-8">
@@ -897,22 +982,41 @@ const App: React.FC = () => {
                             </div>
                             <h4 className="font-black text-[#062c1a] serif italic">{cat}</h4>
                           </div>
-                          <div className="flex justify-between items-end mb-6">
-                             <div>
-                               <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Spent (Mo.)</p>
-                               <p className="text-xl md:text-2xl font-black">${spent.toLocaleString()}</p>
-                             </div>
-                             <div className="text-right">
-                               <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Monthly Limit</p>
-                               <div className="flex items-center gap-1">
-                                    <span className="text-[#8c7851] font-black">$</span>
-                                    <input type="number" className="w-20 md:w-24 bg-[#fdfaf3] border-b-2 border-[#dcd0b9] text-right font-black p-1 focus:border-[#c5a059] outline-none" value={limit || ''} placeholder="0" onChange={(e) => updateBudget(cat, parseFloat(e.target.value) || 0)} />
+                          <div className="space-y-4 mb-6">
+                            <div className="flex justify-between items-center">
+                               <div>
+                                 <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Current Month</p>
+                                 <p className="text-lg md:text-xl font-black">${spent.toLocaleString()}</p>
                                </div>
-                             </div>
+                               <div className="text-right">
+                                 <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Average</p>
+                                 <p className="text-lg md:text-xl font-black text-[#c5a059]">${average.toFixed(0)}</p>
+                               </div>
+                            </div>
+                            <div className="flex justify-between items-center">
+                               <div>
+                                 <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Monthly Limit</p>
+                                 <div className="flex items-center gap-1">
+                                      <span className="text-[#8c7851] font-black">$</span>
+                                      <input type="number" className="w-20 md:w-24 bg-[#fdfaf3] border-b-2 border-[#dcd0b9] text-right font-black p-1 focus:border-[#c5a059] outline-none" value={limit || ''} placeholder="0" onChange={(e) => updateBudget(cat, parseFloat(e.target.value) || 0)} />
+                                 </div>
+                               </div>
+                               <div className="text-right">
+                                 <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest mb-1">Remaining</p>
+                                 <p className={`text-lg md:text-xl font-black ${limit - spent >= 0 ? 'text-green-700' : 'text-red-700'}`}>${Math.max(0, limit - spent).toLocaleString()}</p>
+                               </div>
+                            </div>
                           </div>
                           <div className="h-2 w-full bg-[#fdfaf3] rounded-full overflow-hidden border border-[#dcd0b9]">
                              <div className={`h-full transition-all duration-700 ${ratio > 1 ? 'bg-red-800' : ratio > 0.8 ? 'bg-[#c5a059]' : 'bg-[#062c1a]'}`} style={{ width: `${Math.min(100, ratio * 100)}%` }}></div>
                           </div>
+                          {average > 0 && limit > 0 && (
+                            <div className="mt-3 text-center">
+                              <p className="text-[10px] font-black uppercase text-[#8c7851] tracking-widest">
+                                Budget vs Average: {limit > average ? '+' : ''}{((limit - average) / average * 100).toFixed(0)}%
+                              </p>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
