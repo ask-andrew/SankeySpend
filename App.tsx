@@ -16,7 +16,20 @@ import LifestyleInflationDetector from './components/insights/LifestyleInflation
 import CashFlowWaterfall from './components/insights/CashFlowWaterfall';
 import FinancialFingerprintInsight from './components/insights/FinancialFingerprint';
 
-export const COLORS = ['#062c1a', '#2d1810', '#c5a059', '#634b3e', '#8c7851', '#dcd0b9', '#3e3e3e', '#e8e1d4'];
+export const COLORS = [
+  '#1e40af', // Deep Blue
+  '#dc2626', // Bright Red  
+  '#16a34a', // Emerald Green
+  '#9333ea', // Purple
+  '#ea580c', // Orange
+  '#0891b2', // Cyan
+  '#eab308', // Yellow
+  '#be185d', // Pink
+  '#059669', // Teal
+  '#7c3aed', // Violet
+  '#ca8a04', // Amber
+  '#0f766e'  // Dark Teal
+];
 const TELLER_ILLUSTRATION = "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?q=80&w=800&auto=format&fit=crop";
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -659,9 +672,9 @@ const App: React.FC = () => {
                                ))}
                             </div>
                          </div>
-                         <div className="w-full overflow-x-auto overflow-y-visible min-h-[400px] lg:min-h-[500px]">
-                            <div className="min-w-[600px]">
-                               <SankeyChart data={sankeyData} height={500} onNodeClick={(name) => { setSelectedCategory(name); setActiveTab('history'); }} />
+                         <div className="w-full overflow-x-auto overflow-y-visible min-h-[500px] lg:min-h-[600px]">
+                            <div className="min-w-[800px]">
+                               <SankeyChart data={sankeyData} height={600} onNodeClick={(name) => { setSelectedCategory(name); setActiveTab('history'); }} />
                             </div>
                          </div>
                       </div>

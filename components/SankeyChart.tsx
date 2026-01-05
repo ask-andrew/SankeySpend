@@ -22,8 +22,8 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
       if (svgRef.current?.parentElement) {
         const parent = svgRef.current.parentElement as HTMLElement;
         const containerWidth = parent.clientWidth;
-        // Use full available width with reasonable constraints
-        const newWidth = Math.max(600, Math.min(containerWidth - 20, 1400)); // Min 600px, max 1400px
+        // Use more available width with better constraints
+        const newWidth = Math.max(800, Math.min(containerWidth - 20, 1600)); // Min 800px, max 1600px
         setContainerWidth(newWidth);
       }
     };
@@ -33,8 +33,8 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Calculate responsive dimensions
-  const responsiveHeight = Math.max(400, Math.min(600, containerWidth * 0.5)); // Min 400px, max 600px
+  // Calculate responsive dimensions - make it larger
+  const responsiveHeight = Math.max(500, Math.min(700, containerWidth * 0.65)); // Min 500px, max 700px
   const effectiveWidth = containerWidth;
 
   useEffect(() => {
@@ -48,8 +48,8 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
     const innerHeight = responsiveHeight - margin.top - margin.bottom;
 
     const sankey = (d3Sankey() as any)
-      .nodeWidth(15)
-      .nodePadding(30) // Increased padding for cleaner separation
+      .nodeWidth(20) // Increased node width for better visibility
+      .nodePadding(40) // Increased padding for cleaner separation
       .extent([[1, 1], [innerWidth - 1, innerHeight - 1]]);
 
     const { nodes, links } = sankey({
@@ -67,7 +67,7 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
 
     const link = g.append("g")
       .attr("fill", "none")
-      .attr("stroke-opacity", 0.85) // High opacity for solid bold bands
+      .attr("stroke-opacity", 0.7) // Slightly reduced opacity for better blending
       .selectAll("g")
       .data(links)
       .join("g")
@@ -75,9 +75,11 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
 
     link.append("path")
       .attr("d", sankeyLinkHorizontal())
-      // Solid band coloring from the target category node
+      // Use vibrant colors from target category node
       .attr("stroke", (d: any) => colorScale(d.target.name))
-      .attr("stroke-width", (d: any) => Math.max(1, d.width));
+      .attr("stroke-width", (d: any) => Math.max(2, d.width)) // Minimum width of 2 for visibility
+      .attr("stroke-linejoin", "round") // Smoother joins
+      .attr("stroke-linecap", "round"); // Rounded ends
 
     link.append("title")
       .text((d: any) => `${d.source.name} → ${d.target.name}\n${d.value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`);
@@ -97,23 +99,24 @@ const SankeyChart: React.FC<Props> = ({ data, width = 800, height = 500, onNodeC
       .attr("y", (d: any) => d.y0)
       .attr("height", (d: any) => d.y1 - d.y0)
       .attr("width", (d: any) => d.x1 - d.x0)
-      .attr("fill", (d: any) => d.name === "Money Flow" ? "#062c1a" : colorScale(d.name))
-      .attr("stroke", "rgba(0,0,0,0.1)")
-      .attr("rx", 2);
+      .attr("fill", (d: any) => d.name === "Money Flow" ? "#1e40af" : colorScale(d.name)) // Use vibrant blue for center
+      .attr("stroke", "rgba(255,255,255,0.3)") // Light stroke for definition
+      .attr("stroke-width", 1)
+      .attr("rx", 3) // Slightly rounded corners
 
     node.append("text")
       .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 12 : d.x0 - 12)
       .attr("y", (d: any) => (d.y1 + d.y0) / 2)
       .attr("dy", "0.35em")
       .attr("text-anchor", (d: any) => d.x0 < innerWidth / 2 ? "start" : "end")
-      .attr("fill", "#2d1810")
+      .attr("fill", "#1f2937") // Darker text for better contrast
       .style("font-weight", "800")
-      .style("font-size", "10px")
+      .style("font-size", "11px") // Slightly larger text
       .style("text-transform", "uppercase")
       .style("letter-spacing", "0.05em")
       .text((d: any) => d.name)
       .append("tspan")
-      .attr("fill", "#8c7851")
+      .attr("fill", "#6b7280") // Softer color for amounts
       .attr("x", (d: any) => d.x0 < innerWidth / 2 ? d.x1 + 12 : d.x0 - 12)
       .attr("dy", "1.3em")
       .style("font-weight", "600")
