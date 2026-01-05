@@ -420,8 +420,8 @@ const App: React.FC = () => {
     const loyalty = (1 - (merchants / (txs.length || 1))) * 100;
     return [
       { subject: 'Impulsivity', A: impulsivity, fullMark: 100 },
-      { subject: 'Weekend Effect', A: weekendEffect, fullMark: 100 },
-      { subject: 'Essential Ratio', A: essentialRatio, fullMark: 100 },
+      { subject: 'Weekend', A: weekendEffect, fullMark: 100 },
+      { subject: 'Essentials', A: essentialRatio, fullMark: 100 },
       { subject: 'Loyalty', A: loyalty, fullMark: 100 },
       { subject: 'Diversity', A: 50, fullMark: 100 }
     ];
@@ -743,9 +743,9 @@ const App: React.FC = () => {
                                 </div>
                               </div>
                           </h4>
-                          <div className="h-80">
+                          <div className="h-96">
                             <ResponsiveContainer width="100%" height="100%">
-                              <RadarChart cx="50%" cy="50%" outerRadius="85%" data={fingerprintData}>
+                              <RadarChart cx="50%" cy="50%" outerRadius="75%" data={fingerprintData}>
                                 <PolarGrid 
                                   stroke="#e5e7eb" 
                                   strokeWidth={1}
@@ -755,21 +755,24 @@ const App: React.FC = () => {
                                   dataKey="subject" 
                                   tick={{ 
                                     fill: '#374151', 
-                                    fontSize: 11, 
+                                    fontSize: 9, 
                                     fontWeight: 600,
                                     className: "uppercase tracking-wide"
                                   }} 
                                   axisLine={false}
+                                  tickLine={false}
+                                  tickMargin={12}
                                 />
                                 <PolarRadiusAxis 
                                   angle={90} 
                                   domain={[0, 100]} 
                                   tick={{ 
                                     fill: '#9ca3af', 
-                                    fontSize: 9,
+                                    fontSize: 7,
                                     fontWeight: 500
                                   }}
                                   axisLine={false}
+                                  tickLine={false}
                                 />
                                 <Radar 
                                   name="Fingerprint" 
