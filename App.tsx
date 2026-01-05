@@ -2,7 +2,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Transaction, SpendingInsight, SankeyData, ChatMessage, BudgetSuggestion } from './types';
 import { categorizeTransactions, getSpendingInsights, queryTransactions, suggestBudgets } from './services/geminiService';
+import CategorizationLearner from './services/categorizationLearner';
+import { guessCategoryFromDescription } from './utils/categorizationUtils';
 import SankeyChart from './components/SankeyChart';
+import SmartCategorizationSuggestions from './components/SmartCategorizationSuggestions';
 import Papa from 'papaparse';
 import { 
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
@@ -59,21 +62,6 @@ const formatMonthLabel = (monthKey: string): string => {
   return monthKey;
 };
 
-const guessCategoryFromDescription = (description: string): string | undefined => {
-  const d = description.toLowerCase();
-  if (/rent|landlord|mortgage/.test(d)) return 'Housing';
-  if (/uber|lyft|bus|train|metro|subway/.test(d)) return 'Transport';
-  if (/grocery|supermarket|market|whole foods|trader joe/.test(d)) return 'Food & Drink';
-  if (/coffee|cafe|starbucks|dunkin/.test(d)) return 'Food & Drink';
-  if (/netflix|spotify|hulu|disney|max/.test(d)) return 'Bills & Utilities';
-  if (/gym|fitness|yoga|clinic|pharmacy/.test(d)) return 'Wellness & Health';
-  if (/amazon|target|walmart|best buy/.test(d)) return 'Shopping';
-  if (/flight|airlines|hotel|airbnb/.test(d)) return 'Travel';
-  if (/salary|payroll|paycheck|wages/.test(d)) return 'Income';
-  if (/transfer|payment to|cc payment|credit card payment/.test(d)) return 'Account Transfer';
-  return undefined;
-};
-
 const Logo: React.FC<{ showTagline?: boolean; size?: 'sm' | 'md' | 'lg', isLight?: boolean }> = ({ showTagline = true, size = 'md', isLight = false }) => {
   const scale = size === 'sm' ? 0.6 : size === 'lg' ? 1.5 : 1;
   const titleColor = isLight ? 'text-[#c5a059]' : 'text-[#062c1a]';
@@ -108,6 +96,8 @@ const Logo: React.FC<{ showTagline?: boolean; size?: 'sm' | 'md' | 'lg', isLight
 };
 
 const App: React.FC = () => {
+  const categorizationLearner = useMemo(() => new CategorizationLearner(), []);
+
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('teller_txs');
     return saved ? JSON.parse(saved) : [];
@@ -236,12 +226,25 @@ const App: React.FC = () => {
       const enriched = allNewTransactions.map(t => {
         const match = cats.find(c => c.id === t.id);
         let category = t.category;
+        
         if (!category || category === 'Categorizing...' || category === 'Uncategorized') {
-          category = match?.category || guessCategoryFromDescription(t.description) || 'Uncategorized';
+          // Try learned patterns first
+          const learnedSuggestion = categorizationLearner.suggestCategory(t.description, t.merchantName);
+          
+          if (learnedSuggestion && learnedSuggestion.confidence > 0.7) {
+            category = learnedSuggestion.category;
+          } else {
+            // Fall back to AI categorization, then pattern matching, then default
+            category = match?.category || guessCategoryFromDescription(t.description) || 'Uncategorized';
+          }
         }
+        
+        // Learn from the final categorization
+        categorizationLearner.learnFromTransaction(t.description, match?.merchant || t.merchantName, category);
+        
         return { 
           ...t, 
-          merchantName: match?.merchant, 
+          merchantName: match?.merchant || t.merchantName, 
           category: category,
           isInternalTransfer: category === 'Account Transfer'
         };
@@ -306,12 +309,27 @@ const App: React.FC = () => {
     setTransactions(prev => prev.map(t => {
       if (t.id === txId) {
         const updated = { ...t, category: editCategory, isInternalTransfer: editCategory === 'Account Transfer' };
+        // Learn from manual categorization
+        categorizationLearner.learnFromTransaction(t.description, t.merchantName, editCategory);
         return updated;
       }
       return t;
     }));
     setEditingTransactionId(null);
     setEditCategory('');
+    refreshInsights();
+  };
+
+  const handleBulkCategorize = (transactionIds: string[], category: string) => {
+    setTransactions(prev => prev.map(t => {
+      if (transactionIds.includes(t.id)) {
+        const updated = { ...t, category, isInternalTransfer: category === 'Account Transfer' };
+        // Learn from bulk categorization
+        categorizationLearner.learnFromTransaction(t.description, t.merchantName, category);
+        return updated;
+      }
+      return t;
+    }));
     refreshInsights();
   };
 
@@ -791,6 +809,12 @@ const App: React.FC = () => {
 
               {activeTab === 'history' && (
                 <div className="max-w-6xl mx-auto space-y-6 md:space-y-8">
+                  <SmartCategorizationSuggestions
+                    transactions={transactions}
+                    onCategorize={handleBulkCategorize}
+                    categorizationLearner={categorizationLearner}
+                  />
+                  
                   <div className="bg-white p-6 md:p-8 rounded-2xl card-shadow border border-[#dcd0b9] flex flex-col md:flex-row items-center gap-4 md:gap-6">
                      <div className="relative flex-grow w-full">
                         <i className="fas fa-magnifying-glass absolute left-6 top-1/2 -translate-y-1/2 text-[#dcd0b9]"></i>
